@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Medullo</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="dot" id="status-dot" aria-hidden="true"></div>
+        <h1>Medullo</h1>
+      </header>
+
+      <p class="tagline">A quiet second working memory.</p>
+
+      <section class="rows">
+        <div class="row">
+          <span class="label">Backend</span>
+          <span class="value" id="backend-url">—</span>
+        </div>
+        <div class="row">
+          <span class="label">Queued</span>
+          <span class="value" id="queued">—</span>
+        </div>
+        <div class="row">
+          <span class="label">Sent</span>
+          <span class="value" id="sent">—</span>
+        </div>
+        <div class="row">
+          <span class="label">Last flush</span>
+          <span class="value" id="last-flush">—</span>
+        </div>
+      </section>
+
+      <p class="error" id="error" hidden></p>
+
+      <div class="actions">
+        <button id="flush">Flush now</button>
+        <button id="reset" class="ghost">New session</button>
+      </div>
+
+      <footer>Phase 1 · event pipeline</footer>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
