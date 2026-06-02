@@ -21,10 +21,10 @@ export default async function SessionsPage() {
       <div className="relative z-10 mx-auto flex h-screen w-full max-w-6xl flex-col px-6 py-10 sm:px-8 lg:px-10">
         <header className="mb-6 flex flex-col gap-4 border-b border-white/60 pb-6 text-ink-900 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-ink-400">Memory lane</p>
-            <h1 className="mt-2 font-welcome text-[clamp(3rem,8vw,4.5rem)] leading-tight">Recent interruptions</h1>
+            <p className="text-xs uppercase tracking-[0.24em] text-ink-400">All sessions</p>
+            <h1 className="mt-2 font-welcome text-[clamp(3rem,8vw,4.5rem)] leading-tight">Session archive</h1>
             <p className="mt-3 max-w-2xl text-sm text-ink-700 sm:text-base">
-              A quiet archive of the moments Medullo already recognized as worth returning to.
+              Your complete record of work sessions—browse the full history of your focus moments.
             </p>
           </div>
           <div className="flex items-center gap-3">

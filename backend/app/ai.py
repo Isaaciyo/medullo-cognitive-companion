@@ -28,7 +28,9 @@ from pydantic import BaseModel, Field
 
 from .models import Event, Session
 
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
+GEMINI_MODEL = os.getenv(
+    "GEMINI_MODEL", "gemini-2.5-flash"
+)  # set to "gemini-2.5-pro" for more capable (but costly) snapshots
 
 # Cap the timeline included in the prompt. 1M-context Pro can handle far
 # more, but cost scales with input tokens; sessions rarely need >80 events
@@ -107,7 +109,10 @@ def _filter_events_for_prompt(events: list[Event]) -> list[Event]:
     for ev in events:
         if ev.event_type == "active":
             continue
-        if ev.event_type == "page_focus" and (ev.duration_seconds or 0) < MIN_FOCUS_FOR_PROMPT_SECONDS:
+        if (
+            ev.event_type == "page_focus"
+            and (ev.duration_seconds or 0) < MIN_FOCUS_FOR_PROMPT_SECONDS
+        ):
             continue
         kept.append(ev)
     if len(kept) > MAX_EVENTS_IN_PROMPT:
@@ -121,16 +126,18 @@ def build_prompt(session: Session, events: list[Event]) -> str:
     duration_seconds = 0.0
     if session.ended_at and session.started_at:
         duration_seconds = (session.ended_at - session.started_at).total_seconds()
-    timeline = "\n".join(_format_event_line(e) for e in _filter_events_for_prompt(events))
+    timeline = "\n".join(
+        _format_event_line(e) for e in _filter_events_for_prompt(events)
+    )
     keywords = ", ".join(session.keywords or []) or "(none gathered)"
     return f"""\
 SESSION CONTEXT
 ---------------
-Started:           {session.started_at.isoformat() if session.started_at else '-'}
-Ended:             {session.ended_at.isoformat() if session.ended_at else '(still active)'}
+Started:           {session.started_at.isoformat() if session.started_at else "-"}
+Ended:             {session.ended_at.isoformat() if session.ended_at else "(still active)"}
 Wall-clock span:   {duration_seconds:.0f} seconds
 Active attention:  {session.total_active_seconds:.0f} seconds
-Primary domain:    {session.primary_domain or '-'}
+Primary domain:    {session.primary_domain or "-"}
 Heuristic keywords: {keywords}
 
 EVENT TIMELINE

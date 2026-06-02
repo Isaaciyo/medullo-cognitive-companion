@@ -456,13 +456,23 @@ The summary should feel:
 
 ---
 
+# Phase 7+: Smart Interruption Alerts & VS Code Monitoring
+
+## Recently Implemented
+
+* **Interruption Notifications**: Desktop alerts when idle/drift detected
+* **Smart Alert Management**: Prevents repeated alerts for the same snapshot until context switches
+* **VS Code Activity Tracking**: Detects VS Code window focus and sends activity events to backend
+
+---
+
 # Stretch Features (Optional)
 
-Only after MVP stability.
+Only after MVP stability and Phase 7 completion.
 
 Possible future additions:
 
-* VSCode extension
+* Full VS Code extension (deeper integration beyond window focus)
 * terminal awareness
 * attention drift detection
 * blocker prediction

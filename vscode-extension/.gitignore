@@ -1,0 +1,10 @@
+node_modules/
+*.vsix
+.vscode-test/
+dist/
+.env
+.env.local
+*.log
+.DS_Store
+.idea/
+*.swp

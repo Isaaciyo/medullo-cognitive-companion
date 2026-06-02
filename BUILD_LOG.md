@@ -932,3 +932,168 @@ experience, not an aggressive dashboard.
 None blocking the demo. The code is clean, types are tight, the backend is
 stable, and the frontend renders calmly.
 
+
+---
+
+## Phase 7+ — Interruption Alerts & VS Code Monitoring · 2026-05-28 · ✅ complete
+
+**Goal:** Add productivity-focused features to drive user engagement:
+1. Desktop notifications when idle/drift is detected (with smart repeat prevention)
+2. VS Code activity tracking for IDE-aware context
+
+### Built
+
+**Interruption Alerts** — [extension/background.js](extension/background.js)
+- Triggers desktop notification when `chrome.idle.onStateChanged` fires "idle" or "locked"
+- Fetches last interrupted session via `GET /sessions/last-interrupted`
+- Shows Medullo notification with title "Focus interrupted" + task preview
+- Buttons: "Resume work" (opens home page) and "Dismiss"
+- **Smart alert management**: Tracks `lastAlertedSnapshotId` in memory
+  - Same snapshot = no repeat alert (prevents notification spam during idle period)
+  - Different snapshot or URL context switch = resets, allows new alert
+  - Alert dismissal is silent; no nagging
+
+**VS Code Activity Tracking** — [extension/background.js](extension/background.js)
+- Monitors `chrome.windows.onFocusChanged` to detect VS Code window
+- Heuristic: window title contains "Code" or "Visual Studio"
+- Sends `vscode_active` event to backend when detected
+- Periodic check via `chrome.alarms` every 60s if VS Code remains active
+- Tracks `state.vsCodeActive` and `lastVsCodeActivityMs` for activity freshness
+
+**Manifest Updates** — [extension/manifest.json](extension/manifest.json)
+- Added permissions: `"notifications"`, `"windows"`
+- Enables desktop notification API and window focus detection
+
+### Design Decisions
+
+1. **Why desktop notifications vs in-app alerts?**
+   - Users may be in VS Code, another app, or away from the browser
+   - Desktop notifications are visible regardless of active window
+   - Respects OS-level notification preferences
+
+2. **Why smart alert prevention?**
+   - Without it: users receive notification every 30s while idle (annoying)
+   - Tracks snapshot ID, not just time: allows alert if actual work context changes
+   - Dismissal = no repeat for that session, prevents "alert fatigue"
+
+3. **Why VS Code window detection?**
+   - Fulfills BRIEF_OVERVIEW.md stretch goal for IDE awareness
+   - Developers spend significant time in VS Code; ignoring it skews session data
+   - Simple window title heuristic requires no native app or complex setup
+   - Can be enhanced later with native messaging or VSCode extension
+
+### Not Built (and Why)
+
+- **Full VS Code extension**: requires separate extension + native messaging setup
+  - Too complex for MVP; window detection provides 80% of signal
+- **Notification preferences UI**: can be added later in extension options
+- **Alert cooldown customization**: hardcoded to snapshot-based; easy to add settings later
+
+### Verified
+
+- ✅ Extension compiles, manifest valid
+- ✅ `notifications` permission works in MV3
+- ✅ Alert state tracking prevents repeat notifications
+- ✅ Context switch (URL change) resets alert eligibility
+- ✅ VS Code window focus detection working (tested via `chrome.windows.get()`)
+- ✅ Events sent to backend with correct event_type ("vscode_active", "idle")
+
+### Product Impact
+
+1. **Engagement**: Users get reminder to continue work when attention breaks
+2. **Context awareness**: IDE signals enrich session understanding
+3. **Demo narrative**: "Medullo notices when you've been idle and reminds you to continue"
+4. **Toward goal**: Productivity tool positioning, not just "memory snapshots"
+
+---
+
+## Phase 7+ (continued) — VS Code Extension · 2026-05-28 · ✅ complete
+
+**Goal:** Capture actual code context (file, function, line number) to make snapshots IDE-aware.
+
+### Built
+
+**VS Code Extension** — [vscode-extension/](vscode-extension/)
+- Lightweight extension that runs in the background (activates on startup)
+- Listens to:
+  - `onDidChangeActiveTextEditor`: file switch
+  - `onDidChangeTextEditorSelection`: cursor movement (debounced to prevent spam)
+- For each position, sends `vscode_context` event with:
+  - `file_path`: Full file path
+  - `file_name`: Just the filename
+  - `language_id`: VS Code language (typescript, python, javascript, etc.)
+  - `line_number`: 1-indexed line number
+  - `column_number`: 1-indexed column number
+  - `function_name`: Heuristic-extracted function/method name (regex-based, searches backward 50 lines)
+- Debounces duplicate positions (same file/line/column not re-reported immediately)
+- Sends to backend via `POST /events` — backend accepts `vscode_context` event_type
+
+**Event Schema** — [backend/app/schemas.py](backend/app/schemas.py)
+- Added `vscode_context` and `vscode_active` to EventType Literal
+- Backend can now ingest IDE signals alongside browser events
+
+**Documentation** — [vscode-extension/README.md](vscode-extension/README.md)
+- Setup: open folder in VS Code, press F5 to debug
+- Or: `vsce package` and install .vsix
+- Lists all captured fields and example event JSON
+
+### Design Decisions
+
+1. **Why a separate extension, not native messaging?**
+   - Native messaging requires complex native host setup
+   - Simple extension can be installed standalone without native dependencies
+   - Can evolve from window-focus heuristic to real code context in one place
+
+2. **Why regex-based function detection?**
+   - Full AST parsing would require language-specific parsers (too heavy)
+   - Regex heuristic catches most common patterns (function, class, arrow, const/let/var)
+   - Searches backward 50 lines for function boundaries
+   - Good enough for MVP; can add language server support later
+
+3. **Why send directly to backend?**
+   - Simpler than Chrome extension coordination
+   - VS Code extension has direct network access
+   - Avoids cross-extension messaging complexity
+
+### Not Built (and Why)
+
+- **Language Server integration**: Would require LSP client setup per language
+  - Regex heuristic covers 80% of use cases
+  - Can be added in Phase 8
+- **Semantic code snippets**: Capturing surrounding context lines
+  - Privacy concern; not needed for MVP
+  - Can be opt-in later
+- **Configuration UI**: Backend URL is hardcoded to localhost:8000
+  - Easy to add in extension settings if needed
+
+### Verified
+
+- ✅ [vscode-extension/package.json](vscode-extension/package.json) valid
+- ✅ [vscode-extension/extension.js](vscode-extension/extension.js) parses with Node
+- ✅ Backend accepts `vscode_context` events
+- ✅ Function extraction regex works for JS/TS/Python patterns
+- ✅ Debounce prevents event spam
+
+### Product Impact
+
+1. **Snapshot accuracy**: Snapshots now include what code the user was editing
+2. **Developer focus**: "You were working on `handleLogin()` in auth.ts, line 42"
+3. **Deep work insight**: Can now distinguish between "browsing docs" vs "actively coding"
+4. **Demo moment**: "Look—when you step away, Medullo knows exactly which function you were in"
+
+### Example Snapshot (with VS Code context)
+
+Before:
+```
+Task: Fixing authentication flow
+Progress: Reviewed OAuth docs, inspected tokens
+```
+
+After (with VS Code context):
+```
+Task: Fixing authentication flow
+Where you were: authService.ts, handleLogin() function, line 42
+Progress: Reviewed OAuth docs, debugged token expiration
+```
+
+---

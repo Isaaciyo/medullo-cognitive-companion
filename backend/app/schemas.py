@@ -12,6 +12,10 @@ EventType = Literal[
     "active",
     "search_query",
     "interruption_detected",
+    "vscode_active",
+    "vscode_context",
+    "vscode_idle",
+    "vscode_drift",
 ]
 
 

@@ -3,7 +3,7 @@
   "name": "Medullo — Second Brain",
   "version": "0.1.0",
   "description": "Ambient cognitive continuity. Observes lightweight workflow signals so the AI can restore your mental state after interruptions.",
-  "permissions": ["tabs", "idle", "storage", "alarms"],
+  "permissions": ["tabs", "idle", "storage", "alarms", "notifications", "windows"],
   "host_permissions": ["http://localhost:8000/*"],
   "background": {
     "service_worker": "background.js",

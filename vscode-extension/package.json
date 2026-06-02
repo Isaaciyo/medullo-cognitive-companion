@@ -1,0 +1,31 @@
+{
+  "name": "medullo-vscode",
+  "displayName": "Medullo — Code Context",
+  "description": "Captures your active file and cursor position for Medullo cognitive continuity",
+  "version": "0.1.0",
+  "publisher": "medullo",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Isaaciyo/medullo-cognitive-companion.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {},
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0"
+  },
+  "scripts": {
+    "test": "echo \"No tests yet\"",
+    "vsce:package": "vsce package",
+    "vsce:publish": "vsce publish"
+  }
+}

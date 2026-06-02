@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
   browsingSessionId: "medullo:browsingSessionId",
   stats: "medullo:stats",
   lastError: "medullo:lastError",
+  alertState: "medullo:alertState",
 };
 
 const state = {
@@ -20,6 +21,11 @@ const state = {
   // don't spam duplicate page_loaded events as Chrome flicks through
   // intermediate titles ("Loading...", domain-only, then real title).
   reportedTitle: null,
+  // VS Code monitoring
+  vsCodeActive: false,
+  lastVsCodeActivityMs: null,
+  // Alert state: tracks which snapshot we've alerted for, prevents repeat alerts
+  lastAlertedSnapshotId: null,
 };
 
 // ---------- bootstrap ----------
@@ -199,11 +205,19 @@ async function maybeEmitPageLoaded() {
 
 // ---------- Chrome event listeners ----------
 
+// Also update tab switch to reset alert when context truly changes
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   try {
     const tab = await chrome.tabs.get(tabId);
+    const contextChanged = tab.url !== state.currentUrl;
+    
     await closeCurrentSpan("tab_switch");
     await openSpan(tab);
+    
+    // Reset alert state on significant context switch
+    if (contextChanged) {
+      await resetAlertState();
+    }
   } catch {
     /* tab may have closed */
   }
@@ -237,22 +251,6 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   }
 });
 
-chrome.windows.onFocusChanged.addListener(async (windowId) => {
-  if (windowId === chrome.windows.WINDOW_ID_NONE) {
-    await closeCurrentSpan("window_blur");
-    return;
-  }
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, windowId });
-    if (tab) {
-      await closeCurrentSpan("window_focus");
-      await openSpan(tab);
-    }
-  } catch {
-    /* no-op */
-  }
-});
-
 chrome.idle.onStateChanged.addListener(async (newState) => {
   // newState: "active" | "idle" | "locked"
   if (newState === "active" && state.idle) {
@@ -264,8 +262,121 @@ chrome.idle.onStateChanged.addListener(async (newState) => {
     await enqueue(
       await buildEvent("idle", { extra: { reason: newState } })
     );
+    // Trigger alert when user becomes idle
+    await showInterruptionAlert("idle");
   }
 });
+
+// ---------- VS Code monitoring ----------
+
+// Monitor for VS Code window focus (works via window title detection)
+chrome.windows.onFocusChanged.addListener(async (windowId) => {
+  if (windowId === chrome.windows.WINDOW_ID_NONE) {
+    state.vsCodeActive = false;
+    return;
+  }
+  try {
+    const window = await chrome.windows.get(windowId);
+    // Detect VS Code by window title (contains "Code" or "Visual Studio Code")
+    state.vsCodeActive = window.title && (window.title.includes("Code") || window.title.includes("Visual Studio"));
+    if (state.vsCodeActive) {
+      state.lastVsCodeActivityMs = Date.now();
+      await enqueue(
+        await buildEvent("vscode_active", {
+          extra: { window_title: window.title },
+        })
+      );
+    }
+  } catch {
+    /* no-op */
+  }
+});
+
+// Send periodic VS Code activity signal if it remains active
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === "medullo:flush") flush();
+  if (alarm.name === "medullo:checkVsCode" && state.vsCodeActive && state.lastVsCodeActivityMs) {
+    const idleMs = Date.now() - state.lastVsCodeActivityMs;
+    if (idleMs < 30000) { // Only send if activity is recent (< 30s)
+      await enqueue(await buildEvent("vscode_active"));
+    }
+  }
+});
+
+// Start VS Code monitoring on install
+chrome.runtime.onInstalled.addListener(async () => {
+  await ensureBrowsingSession(true);
+  await chrome.idle.setDetectionInterval(CONFIG.idleThresholdSeconds);
+  await chrome.alarms.create("medullo:flush", {
+    periodInMinutes: Math.max(CONFIG.flushIntervalSeconds / 60, 0.25),
+  });
+  await chrome.alarms.create("medullo:checkVsCode", {
+    periodInMinutes: 1,
+  });
+});
+
+// ---------- Interruption alerts ----------
+
+async function showInterruptionAlert(reason) {
+  try {
+    // Fetch the last interrupted session with a snapshot
+    const res = await fetch(`${CONFIG.backendUrl}/sessions/last-interrupted`);
+    if (!res.ok) return;
+    
+    const session = await res.json();
+    if (!session || !session.snapshot_generated_at) return;
+    
+    // Only show alert if this is a different snapshot than we last alerted for
+    if (session.id === state.lastAlertedSnapshotId) return;
+    
+    state.lastAlertedSnapshotId = session.id;
+    
+    // Show desktop notification
+    const title = "Medullo: Focus interrupted";
+    const options = {
+      iconUrl: chrome.runtime.getURL("icons/128.png"),
+      title,
+      message: `You were working on: "${session.title || session.primary_domain || 'a task'}". Want to continue?`,
+      type: "basic",
+      requireInteraction: true,
+      buttons: [
+        { title: "Resume work" },
+        { title: "Dismiss" },
+      ],
+    };
+    
+    chrome.notifications.create(`medullo:alert:${session.id}`, options);
+    
+    // Store alert state for reference
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.alertState]: {
+        lastAlertedSnapshotId: session.id,
+        alertedAt: new Date().toISOString(),
+        reason,
+      },
+    });
+  } catch (err) {
+    console.error("Error showing interruption alert:", err);
+  }
+}
+
+// Handle notification button clicks
+chrome.notifications.onButtonClicked.addListener((notifId, btnIdx) => {
+  if (notifId.startsWith("medullo:alert:")) {
+    if (btnIdx === 0) {
+      // "Resume work" button - open Medullo home page
+      chrome.tabs.create({ url: "http://localhost:3000" });
+    }
+    // "Dismiss" (btnIdx === 1) - just close notification, alert won't repeat until context switches
+    chrome.notifications.clear(notifId);
+  }
+});
+
+// When context switches, reset alert state to allow new alerts
+async function resetAlertState() {
+  state.lastAlertedSnapshotId = null;
+  await chrome.storage.local.set({ [STORAGE_KEYS.alertState]: null });
+}
 
 // ---------- popup messaging ----------
 

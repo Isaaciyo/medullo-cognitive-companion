@@ -15,6 +15,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  overflow-y: scroll;
 }
 
 /* Hide the body before the canvas paints — eliminates the flash of unstyled content. */
