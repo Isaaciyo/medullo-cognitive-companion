@@ -4,7 +4,11 @@
   "version": "0.1.0",
   "description": "Ambient cognitive continuity. Observes lightweight workflow signals so the AI can restore your mental state after interruptions.",
   "permissions": ["tabs", "idle", "storage", "alarms", "notifications", "windows"],
-  "host_permissions": ["http://localhost:8000/*"],
+  "host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "https://*/*"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"

@@ -18,12 +18,30 @@ app = FastAPI(
     version="0.1.0",
 )
 
-cors_origins = os.getenv("CORS_ORIGINS", "chrome-extension://*,http://localhost:3000").split(",")
+# CORS origins come from env. Defaults cover local dev; deploys should set
+# `CORS_ORIGINS` to a comma-separated list including the deployed frontend
+# domain (e.g. "https://medullo.vercel.app"). Any value containing a `*`
+# wildcard gets compiled into the regex pass instead of the literal list.
+_default_origins = "http://localhost:3000,http://127.0.0.1:3000"
+_raw_origins = os.getenv("CORS_ORIGINS", _default_origins)
+_explicit: list[str] = []
+_wildcards: list[str] = []
+for o in (item.strip() for item in _raw_origins.split(",")):
+    if not o:
+        continue
+    (_wildcards if "*" in o else _explicit).append(o)
+
+# Always allow chrome-extension://<any-id> so both unpacked-dev and Web-Store
+# installs work without env tweaks. Append any user-provided wildcards.
+_extra_regex = "|".join(w.replace(".", r"\.").replace("*", ".*") for w in _wildcards)
+_origin_regex = r"chrome-extension://.*"
+if _extra_regex:
+    _origin_regex = f"({_origin_regex})|({_extra_regex})"
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in cors_origins if o.strip()],
-    allow_origin_regex=r"chrome-extension://.*",
+    allow_origins=_explicit,
+    allow_origin_regex=_origin_regex,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],

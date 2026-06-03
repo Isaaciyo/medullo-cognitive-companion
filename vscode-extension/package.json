@@ -18,7 +18,18 @@
     "onStartupFinished"
   ],
   "main": "./extension.js",
-  "contributes": {},
+  "contributes": {
+    "configuration": {
+      "title": "Medullo",
+      "properties": {
+        "medullo.backendUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "URL of your Medullo backend. Use http://localhost:8000 for self-hosted, or your hosted backend URL (e.g. https://medullo-api.up.railway.app)."
+        }
+      }
+    }
+  },
   "devDependencies": {
     "@types/vscode": "^1.85.0",
     "@types/node": "^20.0.0"

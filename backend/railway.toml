@@ -1,0 +1,18 @@
+# Railway picks this up automatically when this directory is the service root.
+# Set env vars in the Railway dashboard:
+#   GEMINI_API_KEY=...
+#   CORS_ORIGINS=https://<your-vercel-app>.vercel.app
+#   DATABASE_URL=sqlite:////data/medullo.db   # default — match the volume mount
+#
+# Attach a persistent volume to the service mounted at /data so the SQLite
+# database survives redeploys.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

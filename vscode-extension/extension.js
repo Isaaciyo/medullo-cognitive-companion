@@ -4,8 +4,28 @@
 const vscode = require("vscode");
 
 const CONFIG = {
-  backendUrl: "http://localhost:8000",
+  // Compile-time fallback. The real value is read live from VS Code settings
+  // via getBackendUrl() so users can change it in their settings.json without
+  // rebuilding the extension.
+  defaultBackendUrl: "http://localhost:8000",
+  idleThresholdSeconds: 60,
 };
+
+/**
+ * Read the backend URL from VS Code settings, falling back to the default.
+ * Contributed as `medullo.backendUrl` in package.json — users can change it
+ * via Settings UI or by editing settings.json directly.
+ */
+function getBackendUrl() {
+  const configured = vscode.workspace
+    .getConfiguration("medullo")
+    .get("backendUrl");
+  const url =
+    typeof configured === "string" && configured.trim()
+      ? configured.trim()
+      : CONFIG.defaultBackendUrl;
+  return url.replace(/\/+$/, "");
+}
 
 let extension = {
   disposables: [],
@@ -119,7 +139,7 @@ async function reportCodeContext(editor = null, position = null) {
     };
 
     // Send to backend
-    const response = await fetch(`${CONFIG.backendUrl}/events`, {
+    const response = await fetch(`${getBackendUrl()}/events`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(event),
@@ -232,7 +252,7 @@ async function sendEvent(eventType, options = {}) {
       extra: options.extra || null,
     };
 
-    const response = await fetch(`${CONFIG.backendUrl}/events`, {
+    const response = await fetch(`${getBackendUrl()}/events`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(event),

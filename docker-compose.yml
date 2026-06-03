@@ -1,0 +1,60 @@
+# Medullo — one-command self-host stack.
+#
+# Quick start:
+#   cp .env.example .env             # or create .env at repo root
+#   # Add GEMINI_API_KEY=... to .env
+#   docker compose up -d --build
+#   open http://localhost:3000
+#
+# What runs:
+#   - backend  : FastAPI on :8000 with a persistent SQLite volume
+#   - frontend : Next.js on :3000, baked against http://localhost:8000
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: medullo-backend:local
+    container_name: medullo-backend
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      - PORT=8000
+      - DATABASE_URL=sqlite:////data/medullo.db
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-pro}
+    volumes:
+      - medullo_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC_* env vars are baked at build time. To point the
+        # frontend at a different backend, override this arg on `docker
+        # compose build` or change .env and rebuild.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    image: medullo-frontend:local
+    container_name: medullo-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  medullo_data:
+    name: medullo_data

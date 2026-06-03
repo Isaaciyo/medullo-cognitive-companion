@@ -15,7 +15,7 @@
       <p class="tagline">A quiet second working memory.</p>
 
       <section class="rows">
-        <div class="row">
+        <div class="row clickable" id="backend-row" title="Click to change backend URL">
           <span class="label">Backend</span>
           <span class="value" id="backend-url">—</span>
         </div>
@@ -35,12 +35,31 @@
 
       <p class="error" id="error" hidden></p>
 
+      <section id="settings" class="settings" hidden>
+        <label class="settings-label" for="backend-url-input">Backend URL</label>
+        <input
+          id="backend-url-input"
+          type="url"
+          placeholder="https://your-backend.example.com"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <p class="settings-help">
+          Self-host? Point this at your backend. Default is
+          <code>http://localhost:8000</code>.
+        </p>
+        <div class="settings-actions">
+          <button id="settings-save">Save</button>
+          <button id="settings-cancel" class="ghost">Cancel</button>
+        </div>
+      </section>
+
       <div class="actions">
         <button id="flush">Flush now</button>
         <button id="reset" class="ghost">New session</button>
       </div>
 
-      <footer>Phase 1 · event pipeline</footer>
+      <footer>Cognitive continuity · v0.1</footer>
     </main>
     <script src="popup.js"></script>
   </body>

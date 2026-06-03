@@ -9,7 +9,19 @@ const STORAGE_KEYS = {
   stats: "medullo:stats",
   lastError: "medullo:lastError",
   alertState: "medullo:alertState",
+  backendUrl: "medullo:backendUrl",
 };
+
+// User-overridable backend URL. Falls back to the compile-time default in
+// config.js (localhost) for fresh installs. Always read via getBackendUrl()
+// rather than CONFIG.backendUrl directly — the storage value is the source
+// of truth once the user has set one via the popup.
+async function getBackendUrl() {
+  const stored = await chrome.storage.local.get(STORAGE_KEYS.backendUrl);
+  const url = stored[STORAGE_KEYS.backendUrl];
+  if (typeof url === "string" && url.trim()) return url.replace(/\/+$/, "");
+  return CONFIG.backendUrl.replace(/\/+$/, "");
+}
 
 const state = {
   currentTabId: null,
@@ -79,7 +91,8 @@ async function flush() {
   if (queue.length === 0) return;
 
   try {
-    const res = await fetch(`${CONFIG.backendUrl}/events/batch`, {
+    const backendUrl = await getBackendUrl();
+    const res = await fetch(`${backendUrl}/events/batch`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ events: queue }),
@@ -320,7 +333,8 @@ chrome.runtime.onInstalled.addListener(async () => {
 async function showInterruptionAlert(reason) {
   try {
     // Fetch the last interrupted session with a snapshot
-    const res = await fetch(`${CONFIG.backendUrl}/sessions/last-interrupted`);
+    const backendUrl = await getBackendUrl();
+    const res = await fetch(`${backendUrl}/sessions/last-interrupted`);
     if (!res.ok) return;
     
     const session = await res.json();
@@ -394,7 +408,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         stats: data[STORAGE_KEYS.stats] || { sent: 0, lastFlushAt: null },
         lastError: data[STORAGE_KEYS.lastError] || null,
         browsingSessionId: data[STORAGE_KEYS.browsingSessionId] || null,
-        backendUrl: CONFIG.backendUrl,
+        backendUrl: await getBackendUrl(),
       });
     } else if (msg?.type === "medullo:flushNow") {
       await flush();
@@ -402,6 +416,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     } else if (msg?.type === "medullo:resetSession") {
       await ensureBrowsingSession(true);
       sendResponse({ ok: true });
+    } else if (msg?.type === "medullo:setBackendUrl") {
+      const url = typeof msg.url === "string" ? msg.url.trim().replace(/\/+$/, "") : "";
+      if (!url) {
+        sendResponse({ ok: false, error: "empty url" });
+        return;
+      }
+      await chrome.storage.local.set({ [STORAGE_KEYS.backendUrl]: url });
+      // Clear any stale connection error so the popup status dot recovers
+      // immediately the next time flush() succeeds against the new URL.
+      await chrome.storage.local.remove(STORAGE_KEYS.lastError);
+      sendResponse({ ok: true, backendUrl: url });
     }
   })();
   return true; // keep the channel open for async sendResponse

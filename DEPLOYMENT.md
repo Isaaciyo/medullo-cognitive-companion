@@ -1,395 +1,257 @@
-# Medullo Deployment Guide
+# Medullo · Deployment Guide
 
-## Quick Start (Local Demo)
+Two paths are supported, depending on what you're trying to do:
 
-Perfect for testing, demoing, or developing locally.
+1. **[Hackathon-style live demo](#path-1--hosted-demo-vercel--railway)** — frontend on Vercel,
+   backend on Railway. Anyone with the URL can experience your live snapshots.
+2. **[Self-host](#path-2--self-host-docker-compose)** — `docker compose up`
+   and the whole stack runs on the user's machine. Matches the brief's
+   local-first identity.
+
+The Chrome extension and VS Code extension both support a user-configurable
+backend URL, so the same published extension works against either deployment.
+
+---
+
+## Path 1 · Hosted demo (Vercel + Railway)
+
+The fastest way to give judges or testers a working URL.
+
+### What you'll deploy
+
+```
+medullo-frontend  ──→  Vercel        (Next.js, free)
+medullo-backend   ──→  Railway       (Docker, $5/mo trial-then-paid, persistent volume)
+```
 
 ### Prerequisites
-- Python 3.8+
-- Node.js 18+
-- Google Chrome or Chromium-based browser
-- VS Code (for IDE extension)
+
+- A **GitHub** account with this repo pushed
+- A **Vercel** account ([vercel.com](https://vercel.com), free)
+- A **Railway** account ([railway.app](https://railway.app), $5 trial credit)
+- A **Gemini API key** ([aistudio.google.com](https://aistudio.google.com/apikey))
+
+### Step 1 — Deploy the backend to Railway
+
+1. In Railway, click **New Project → Deploy from GitHub repo** and select
+   this repo.
+2. After it imports, open **Settings → Service Source** and set the
+   **Root Directory** to `backend`. Railway will auto-detect
+   `backend/Dockerfile` and `backend/railway.toml`.
+3. Open the **Variables** tab and add:
+   ```
+   GEMINI_API_KEY     = <your key>
+   CORS_ORIGINS       = https://<your-vercel-app>.vercel.app
+   ```
+   *(You'll know the Vercel URL after Step 2 — you can come back and add
+   it then. Until then, set it to `*` so CORS doesn't block your first
+   test.)*
+4. **Add a persistent volume** so SQLite survives redeploys:
+   open the service → **Volumes → New Volume**, mount path `/data`,
+   size 1 GB is plenty.
+5. Click **Deploy**. When the build finishes, Railway gives the service
+   a public URL like `https://medullo-backend-production.up.railway.app`.
+   Test it:
+   ```bash
+   curl https://your-backend-url.up.railway.app/health
+   # {"status":"ok","service":"medullo-second-brain","phase":1}
+   ```
+
+### Step 2 — Deploy the frontend to Vercel
+
+1. In Vercel, click **Add New → Project** and import this GitHub repo.
+2. Set **Root Directory** to `frontend`.
+3. Vercel auto-detects Next.js. Under **Environment Variables**, add:
+   ```
+   NEXT_PUBLIC_API_URL = https://your-backend-url.up.railway.app
+   ```
+4. Click **Deploy**. After ~1 minute, Vercel gives you a URL like
+   `https://medullo-second-brain.vercel.app`.
+5. Go back to Railway's **Variables** and tighten
+   `CORS_ORIGINS` to your exact Vercel URL (replace the temporary `*`).
+
+### Step 3 — Verify end-to-end
+
+1. Sideload the Chrome extension (`chrome://extensions` → Developer mode
+   → Load unpacked → `extension/` folder).
+2. Click the Medullo icon → click the **Backend** row → enter the
+   Railway URL → Save.
+3. Browse for a few minutes, then step away or sit on `chrome://newtab/`
+   to trigger an interruption.
+4. Open your Vercel URL. The welcome card should render with the
+   Gemini-generated snapshot.
 
 ---
 
-## 1. Backend Setup (FastAPI)
+## Path 2 · Self-host (docker-compose)
+
+For anyone who wants the whole stack on their own machine. Matches the
+project's local-first identity — nothing leaves the user's hardware except
+the Gemini API call.
+
+### Prerequisites
+
+- **Docker** (Docker Desktop on macOS/Windows, or any recent Docker engine)
+- A **Gemini API key**
+
+### Run it
 
 ```bash
-cd backend
+git clone https://github.com/<you>/medullo-cognitive-companion.git
+cd medullo-cognitive-companion
 
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+cp .env.example .env
+# Open .env and set: GEMINI_API_KEY=<your key>
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Run server
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+docker compose up -d --build
 ```
 
-**Output:** Backend running at `http://localhost:8000`
-- API docs: `http://localhost:8000/docs` (Swagger UI)
-- Database: `medullo.db` (SQLite, auto-created)
+That's it. After ~2 minutes the first time (subsequent runs are ~10s):
 
----
+- Backend on [http://localhost:8000](http://localhost:8000) (with
+  `/docs` for the API explorer)
+- Frontend on [http://localhost:3000](http://localhost:3000)
+- SQLite data persisted in a named Docker volume (`medullo_data`)
 
-## 2. Frontend Setup (Next.js)
+### Manage the stack
 
 ```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Run dev server
-npm run dev
+docker compose logs -f               # tail logs
+docker compose ps                    # show status
+docker compose down                  # stop everything (data persists)
+docker compose down -v               # stop AND wipe the SQLite volume
+docker compose up -d --build         # rebuild after pulling new code
 ```
 
-**Output:** Frontend running at `http://localhost:3000`
+### Then install the extensions
 
-**Optional - Production build:**
+Chrome extension (sideloaded for now):
+1. `chrome://extensions` → Developer mode → Load unpacked → `extension/`
+2. The default backend URL is `http://localhost:8000` — no settings change
+   needed for self-host
+
+VS Code extension:
+1. `cd vscode-extension && vsce package` produces `medullo-vscode-0.1.0.vsix`
+2. In VS Code: Extensions → ⋯ → Install from VSIX → select the file
+3. Open Settings → search "Medullo" → confirm `medullo.backendUrl` is
+   `http://localhost:8000`
+
+---
+
+## Configurable backend URLs
+
+Both extensions read the backend URL at runtime — so the **same published
+extension** works against either a hosted demo or a self-hosted stack.
+
+**Chrome extension**
+- Open the popup → click the **Backend** row → enter URL → Save.
+- Stored in `chrome.storage.local`, persists across browser restarts.
+
+**VS Code extension**
+- Settings → search "Medullo" → set `medullo.backendUrl`.
+- Or edit `settings.json` directly:
+  ```json
+  { "medullo.backendUrl": "https://medullo-backend.up.railway.app" }
+  ```
+
+---
+
+## Publishing the extensions to public stores
+
+Optional next step. Lets users install with one click instead of sideloading.
+
+### Chrome Web Store
+
 ```bash
-npm run build
-npm start  # Runs production server
+# Package the extension
+cd extension
+zip -r ../medullo-extension.zip . -x '*.DS_Store' '*.git*'
 ```
 
----
+Then:
+1. Create a Chrome Web Store developer account ($5 one-time fee) at
+   [chrome.google.com/webstore/devconsole](https://chrome.google.com/webstore/devconsole/).
+2. Click **New Item** → upload `medullo-extension.zip`.
+3. Fill in store listing: description, screenshots (1280×800), category
+   (*Productivity*), promo tile.
+4. Justify the permissions in the privacy form — important ones:
+   - `tabs`, `idle`, `windows`: needed to detect attention signals
+   - `storage`: queues events locally, stores backend URL preference
+   - `notifications`: surfaces interruption alerts
+   - `host_permissions: https://*/*`: required because the user
+     configures which backend URL the extension sends events to
+5. Submit. Review typically takes 1–3 days.
 
-## 3. Chrome Extension (Manual)
-
-### Load Extension in Developer Mode
-
-1. Open Chrome, go to `chrome://extensions/`
-2. Enable **Developer mode** (top-right toggle)
-3. Click **Load unpacked**
-4. Navigate to `/extension` folder in this project
-5. Extension appears in toolbar
-
-### Verify Installation
-
-- Icon should appear in Chrome toolbar
-- Click icon → popup shows "Medullo Context Captured"
-- Open DevTools (F12) → extension sends events to backend
-- Check `chrome://extensions/` → see "Medullo — Context Capture"
-
-**Note:** Extension auto-batches events every ~15s to `http://localhost:8000/events`
-
----
-
-## 4. VS Code Extension (Manual)
-
-### Debug Mode (Development)
-
-1. Open VS Code
-2. File → Open Folder → select `/vscode-extension`
-3. Press **F5** to start debugging
-4. New VS Code window opens with extension active
-
-**Verify:**
-- Open any code file
-- Move cursor around
-- Check extension console (Help → Toggle Developer Tools)
-- Should see logs: `"Medullo: vscode_context sent"`, `"Medullo: idle check running"`
-
-### Production (VSIX Package)
+### VS Code Marketplace
 
 ```bash
 cd vscode-extension
-
-# Install vsce (if not already)
 npm install -g @vscode/vsce
-
-# Package extension
-vsce package
-
-# Output: medullo-code-context-0.0.1.vsix
-# Install in VS Code: Extensions → ... → Install from VSIX
+vsce login <publisher-id>   # one-time; requires Microsoft account
+vsce publish
 ```
+
+The marketplace listing inherits from `vscode-extension/package.json` —
+fill in `publisher`, `displayName`, `description`, `repository`, and add a
+`README.md` + `icon.png` in the same folder before publishing.
 
 ---
 
-## End-to-End Local Demo Flow
+## Configuration reference
 
-1. **Terminal 1 - Backend:**
-   ```bash
-   cd backend && source .venv/bin/activate
-   python -m uvicorn app.main:app --reload --port 8000
-   ```
+### Backend env vars
 
-2. **Terminal 2 - Frontend:**
-   ```bash
-   cd frontend
-   npm run dev
-   ```
+| Variable          | Default                       | Notes                                                       |
+| ----------------- | ----------------------------- | ----------------------------------------------------------- |
+| `GEMINI_API_KEY`  | *(required)*                  | From aistudio.google.com                                    |
+| `GEMINI_MODEL`    | `gemini-2.5-pro`              | Swap to `gemini-2.5-flash` for cheaper snapshots            |
+| `DATABASE_URL`    | `sqlite:////data/medullo.db`  | Postgres URL also works (set up the table migrations yourself) |
+| `CORS_ORIGINS`    | `http://localhost:3000,...`   | Comma-separated; wildcards allowed (e.g. `https://*.vercel.app`) |
+| `PORT`            | `8000`                        | Railway/Fly inject this — leave it unset                    |
 
-3. **Terminal 3 - Extension Logs (optional):**
-   ```bash
-   # Watch backend events in real-time
-   curl http://localhost:8000/docs  # Check API
-   ```
+### Frontend env vars
 
-4. **Chrome:**
-   - Load `/extension` as unpacked extension
-   - Visit `http://localhost:3000`
-   - Trigger events (tab switches, searches, idle)
+| Variable               | Default                  | Notes                                  |
+| ---------------------- | ------------------------ | -------------------------------------- |
+| `NEXT_PUBLIC_API_URL`  | `http://localhost:8000`  | Baked at build time. Rebuild to change. |
 
-5. **VS Code:**
-   - Press F5 to run `/vscode-extension` in debug mode
-   - Open code files, move cursor
-   - Wait 2+ min for idle detection
+### Extension settings (Chrome)
 
-6. **View Results:**
-   - Go to `http://localhost:3000`
-   - See home page with WelcomeCard (latest interrupted session)
-   - Click "Cognitive Interruptions" → `/interruptions` page
-   - Click "All Sessions" → `/sessions` page (archive)
+| Setting     | Default                  | Where                              |
+| ----------- | ------------------------ | ---------------------------------- |
+| Backend URL | `http://localhost:8000`  | Popup → click the "Backend" row    |
 
----
+### Extension settings (VS Code)
 
-## Production Deployment
-
-### Backend (FastAPI → Cloud)
-
-**Option A: Heroku (simple, free tier deprecated but still works)**
-```bash
-# Add Procfile
-echo "web: uvicorn app.main:app --host 0.0.0.0 --port \$PORT" > Procfile
-
-# Deploy
-heroku login
-heroku create medullo-backend
-git push heroku main
-```
-
-**Option B: AWS EC2**
-```bash
-# SSH into instance
-ssh -i key.pem ubuntu@<instance-ip>
-
-# Install Python, clone repo
-sudo apt update
-sudo apt install python3-pip python3-venv
-git clone <repo>
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Run with gunicorn
-pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:8000 app.main:app
-
-# Or use systemd for auto-restart
-sudo systemctl restart medullo-backend
-```
-
-**Option C: Docker**
-```dockerfile
-# backend/Dockerfile
-FROM python:3.11
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY . .
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
-```bash
-docker build -t medullo-backend .
-docker run -p 8000:8000 medullo-backend
-```
-
-### Frontend (Next.js → Vercel)
-
-**Easiest: Vercel (made by Next.js creators)**
-```bash
-npm install -g vercel
-vercel
-# Follow prompts, auto-deploys from git
-```
-
-**Alternative: AWS Amplify, Netlify, GitHub Pages**
-
-**Environment Variables:**
-```
-NEXT_PUBLIC_BACKEND_URL=https://api.yourdomain.com
-```
-
-### Chrome Extension
-
-1. Build for production:
-   ```bash
-   # Already production-ready, no build step needed
-   # Just zip the /extension folder
-   zip -r medullo-extension.zip extension/
-   ```
-
-2. Submit to Chrome Web Store:
-   - Developer account ($5 one-time fee)
-   - Upload manifest.json + screenshots + description
-   - Review process: 1-3 days
-   - URL: `https://chrome.google.com/webstore/detail/medullo-context-capture/...`
-
-3. Update in manifest.json for production:
-   ```json
-   "host_permissions": [
-     "http://api.yourdomain.com/*",
-     "*://*.google.com/*"
-   ]
-   ```
-
-### VS Code Extension
-
-1. Publish to VS Code Marketplace:
-   ```bash
-   cd vscode-extension
-   vsce publish
-   # Requires Microsoft account
-   ```
-
-2. URL: `https://marketplace.visualstudio.com/items?itemName=yourname.medullo-code-context`
-
-3. Update in extension.js for production:
-   ```javascript
-   const CONFIG = {
-     backendUrl: "https://api.yourdomain.com",
-     idleThresholdSeconds: 120,
-   };
-   ```
-
----
-
-## Environment Configuration
-
-### Local (.env.local in root)
-```
-BACKEND_URL=http://localhost:8000
-FRONTEND_URL=http://localhost:3000
-GEMINI_API_KEY=your-key-here
-DATABASE_URL=sqlite:///./medullo.db
-```
-
-### Production (.env in backend/)
-```
-BACKEND_URL=https://api.yourdomain.com
-FRONTEND_URL=https://yourdomain.com
-GEMINI_API_KEY=your-key-here
-DATABASE_URL=postgresql://user:pass@db-host:5432/medullo
-```
-
----
-
-## Database Migration (Production)
-
-Switch from SQLite to PostgreSQL:
-
-```bash
-# Install postgres driver
-pip install psycopg2-binary
-
-# Update backend/app/database.py
-# DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./medullo.db")
-# to:
-# DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/medullo")
-
-# Create tables
-alembic upgrade head
-```
-
----
-
-## Testing Before Deploy
-
-```bash
-# Backend tests
-cd backend
-pytest
-
-# Frontend tests
-cd frontend
-npm run test
-
-# Manual E2E test
-# 1. All 4 services running
-# 2. Open browser to localhost:3000
-# 3. Trigger: tab switch, search, 2+ min idle in VS Code
-# 4. Verify: snapshot appears on home page
-# 5. Verify: /interruptions and /sessions pages work
-```
-
----
-
-## Monitoring & Debugging
-
-### Backend Logs
-```bash
-# Watch live
-tail -f backend/medullo.db  # SQLite
-# or check FastAPI logs in terminal
-
-# Check events
-curl http://localhost:8000/events
-```
-
-### Frontend Console
-```
-Open browser DevTools (F12) → Console tab
-Look for Medullo API calls to /events, /sessions, etc.
-```
-
-### Extension Logs
-- Chrome: DevTools → Extensions tab → Check logs
-- VS Code: Help → Toggle Developer Tools → Console
+| Setting              | Default                  | Where                          |
+| -------------------- | ------------------------ | ------------------------------ |
+| `medullo.backendUrl` | `http://localhost:8000`  | Settings UI or `settings.json` |
 
 ---
 
 ## Troubleshooting
 
-| Issue | Fix |
-|-------|-----|
-| Backend won't start | Check port 8000 not in use: `lsof -i :8000` |
-| Frontend won't build | `rm -rf node_modules && npm install` |
-| Extension not sending events | Check `CONFIG.backendUrl` matches backend URL |
-| Idle detection not working | Ensure VS Code extension is running (F5 in debug) |
-| Database locked (SQLite) | Restart backend process |
-| CORS errors | Add `CORS_ORIGINS` env var to backend |
+| Symptom                                           | Likely cause / fix                                                                 |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Welcome screen shows "Soon." (backend offline)    | Backend isn't running, or `NEXT_PUBLIC_API_URL` doesn't match. Rebuild the frontend after changing it. |
+| `CORS error` in browser console                   | Add the frontend origin to `CORS_ORIGINS` on the backend and redeploy.             |
+| Chrome popup says `Last error: Failed to fetch`   | Extension's backend URL doesn't match a reachable server. Click the "Backend" row to fix. |
+| Snapshot endpoint returns 503                     | `GEMINI_API_KEY` not set in backend env.                                           |
+| SQLite "readonly database" in Docker              | Volume isn't mounted with write permissions, or the file lives outside the volume. |
+| `vsce publish` fails with 403                     | Run `vsce login <publisher-id>` first; create the publisher in [marketplace.visualstudio.com/manage](https://marketplace.visualstudio.com/manage). |
 
 ---
 
-## Quick Deploy Checklist
+## Cost reality check
 
-- [ ] Backend running and healthy (`/docs` endpoint)
-- [ ] Frontend builds without errors (`npm run build`)
-- [ ] Chrome extension loads (`chrome://extensions/`)
-- [ ] VS Code extension debugs (`F5` works)
-- [ ] Can create events and see in `/interruptions` page
-- [ ] Snapshots generate with Gemini AI
-- [ ] Session archive shows multiple entries
-- [ ] All three pages work (home, interruptions, archive)
+| Component        | Provider | Tier              | Monthly cost          |
+| ---------------- | -------- | ----------------- | --------------------- |
+| Frontend         | Vercel   | Hobby             | $0                    |
+| Backend          | Railway  | Hobby (after trial) | ~$5                 |
+| Gemini snapshots | Google AI Studio | Pay-as-you-go | ~$0.01 per snapshot (Pro), ~10x cheaper on Flash |
+| Chrome Web Store | Google   | One-time dev fee  | $5 once               |
+| VS Code Marketplace | Microsoft | —              | Free                  |
 
----
-
-## One-Click Local Deploy (Optional Script)
-
-Create `start.sh`:
-```bash
-#!/bin/bash
-
-# Start backend
-cd backend
-source .venv/bin/activate &
-python -m uvicorn app.main:app --reload --port 8000 &
-
-# Start frontend
-cd ../frontend
-npm run dev &
-
-echo "✓ Backend: http://localhost:8000"
-echo "✓ Frontend: http://localhost:3000"
-echo "✓ Load extension: chrome://extensions"
-echo "✓ Load VS Code extension: Press F5 in /vscode-extension"
-```
-
-Run: `chmod +x start.sh && ./start.sh`
-
+For a hackathon-scale demo (you + judges + a few testers), expect
+~$5–10/month total. Self-host paths cost $0 except for the user's Gemini
+calls.

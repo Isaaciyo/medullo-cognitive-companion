@@ -44,5 +44,53 @@ $("reset").addEventListener("click", async () => {
   await refresh();
 });
 
+// --- Settings: backend URL --------------------------------------------------
+
+function openSettings(currentUrl) {
+  $("settings").hidden = false;
+  $("backend-url-input").value = currentUrl || "";
+  $("backend-url-input").focus();
+  $("backend-url-input").select();
+}
+
+function closeSettings() {
+  $("settings").hidden = true;
+}
+
+function normalizeUrl(raw) {
+  const trimmed = (raw || "").trim().replace(/\/+$/, "");
+  if (!trimmed) return null;
+  // If they typed just a hostname, default to https.
+  if (!/^https?:\/\//i.test(trimmed)) return `https://${trimmed}`;
+  return trimmed;
+}
+
+$("backend-row").addEventListener("click", () => {
+  openSettings($("backend-url").textContent);
+});
+
+$("settings-cancel").addEventListener("click", closeSettings);
+
+$("settings-save").addEventListener("click", async () => {
+  const url = normalizeUrl($("backend-url-input").value);
+  if (!url) {
+    closeSettings();
+    return;
+  }
+  const result = await chrome.runtime.sendMessage({
+    type: "medullo:setBackendUrl",
+    url,
+  });
+  if (result?.ok) {
+    closeSettings();
+    await refresh();
+  }
+});
+
+$("backend-url-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") $("settings-save").click();
+  if (e.key === "Escape") closeSettings();
+});
+
 refresh();
 setInterval(refresh, 2000);
