@@ -1097,3 +1097,143 @@ Progress: Reviewed OAuth docs, debugged token expiration
 ```
 
 ---
+
+## Phase 7 — Deployment + distribution · 2026-06-03 · ✅ hosted demo live
+
+**Goal:** make Medullo accessible to people who aren't running it on
+their own laptop. Two parallel paths: a hosted demo URL for hackathon
+judging, and a one-command self-host stack for anyone who wants to keep
+their data local (the path the brief actually argues for).
+
+### Built
+
+- **Backend production container**
+  ([backend/Dockerfile](backend/Dockerfile)): Python 3.12 slim, honors
+  `$PORT` injected by Railway/Fly, persists SQLite to `/data` so a
+  mounted volume keeps it across redeploys, includes a `curl`-based
+  healthcheck against `/health`.
+
+- **Railway service config** ([backend/railway.toml](backend/railway.toml))
+  declaring the Dockerfile build path, the `/health` healthcheck, and
+  an `ON_FAILURE` restart policy.
+
+- **CORS overhaul** ([backend/app/main.py](backend/app/main.py)): comma-
+  separated `CORS_ORIGINS` env var, with `*`-wildcards compiled into
+  the regex pass so values like `https://*.vercel.app` work. Preserves
+  the always-on `chrome-extension://*` allow.
+
+- **Frontend production container**
+  ([frontend/Dockerfile](frontend/Dockerfile)): Next.js standalone
+  output (set via `output: "standalone"` in
+  [frontend/next.config.js](frontend/next.config.js)) on Alpine, runs
+  as non-root.
+
+- **One-command self-host** ([docker-compose.yml](docker-compose.yml)
+  + [.env.example](.env.example)): `docker compose up -d --build`
+  spins backend + frontend with a persistent named volume
+  (`medullo_data`), `healthcheck`-gated dependency, and env-driven port
+  overrides.
+
+- **Configurable backend URLs in both extensions** — the single most
+  important change for distribution. The same published extension works
+  against any backend the user points it at.
+  - **Chrome**: new settings drawer in
+    [extension/popup.html](extension/popup.html) +
+    [popup.css](extension/popup.css) +
+    [popup.js](extension/popup.js); URL persisted in
+    `chrome.storage.local` under `medullo:backendUrl`; read at runtime
+    via `getBackendUrl()` in
+    [extension/background.js](extension/background.js); manifest
+    `host_permissions` widened to `https://*/*` plus localhost.
+  - **VS Code**: contributed `medullo.backendUrl` config in
+    [vscode-extension/package.json](vscode-extension/package.json);
+    read via `vscode.workspace.getConfiguration("medullo")` in
+    [vscode-extension/extension.js](vscode-extension/extension.js).
+
+- **Rewritten [DEPLOYMENT.md](DEPLOYMENT.md)**: two-path structure
+  (hosted demo via Vercel+Railway vs self-host via docker-compose),
+  Chrome Web Store + VS Code Marketplace submission steps, config
+  reference table, troubleshooting table, cost reality check.
+
+### Decisions
+
+- **Railway over Render / Fly for backend.** Free trial credit, native
+  Docker support, persistent volumes built-in, no sleep-on-idle (which
+  would break the resume demo). Fly was the runner-up; Render's
+  free-tier sleep was the dealbreaker.
+- **`NEXT_PUBLIC_API_URL` baked at build time.** Standard Next.js
+  pattern. Trade-off: changing the backend URL requires a redeploy.
+  Worth it for the build-time bundling — runtime resolution would mean
+  every page render in production hits a JS env-shim. We documented the
+  rebuild requirement in DEPLOYMENT.md's troubleshooting section
+  (this caught us once already when a missing `https://` scheme
+  produced a "Failed to parse URL" error).
+- **SQLite in a Docker volume, not Postgres.** The brief is
+  unambiguous about local-first. Postgres would be the right call only
+  if we did the multi-tenant rewrite, which we deliberately rejected.
+  Volume-mounted SQLite gives us persistence and zero ops.
+- **Configurable backend URL, not a hardcoded production default.**
+  The Chrome extension defaults to `localhost:8000`. We considered
+  defaulting to the production demo URL but rejected it: would
+  silently send every Web Store installer's events to *our* server,
+  mixing data and undermining the local-first identity. Better to
+  make the user explicitly choose where their data goes.
+- **`host_permissions: ["https://*/*", ...]` over
+  `optional_host_permissions`.** Broader review scrutiny, but no
+  permission prompt mid-flow when the user sets a new backend URL.
+  If the Web Store flags it on review, we'll switch to optional
+  permissions then.
+- **CORS `allow_origin_regex` for wildcards, not `allow_origins`.**
+  FastAPI's CORSMiddleware doesn't accept globs in the explicit list;
+  we compile any value containing `*` into the regex pass.
+
+### Not built (and why)
+
+- **Multi-tenant SaaS.** Different product. Out of scope.
+- **Auth on the hosted backend.** The demo backend serves the
+  developer's own snapshots; judges see a single coherent demo. Adding
+  accounts would balloon the surface area for a one-week hackathon
+  push.
+- **Per-install token isolation on the demo backend.** Considered as
+  a middle ground (each extension install gets a UUID, backend filters
+  by it). Rejected for v1: real users should self-host. Could be a
+  Phase 8 if we want a "try it without installing anything" mode.
+- **Chrome Web Store / VS Code Marketplace submissions themselves.**
+  Code is ready; the submission process requires manual screenshots,
+  store listings, and waiting on review. Tracked as separate
+  follow-ups.
+- **Custom domain on Vercel.** `*.vercel.app` is fine for hackathon
+  scope.
+
+### Verified
+
+- ✅ Backend live on Railway at
+  `medullo-cognitive-companion-production.up.railway.app` with health
+  check passing
+- ✅ Frontend live on Vercel rendering against the Railway backend
+- ✅ Chrome extension popup settings drawer updates backend URL and
+  events flow to the hosted backend
+- ✅ Auto-snapshot loop (Phase 5) still fires correctly with the
+  hosted backend — confirmed by user during deployment verification
+- ⏳ docker-compose self-host path: code is in place, end-to-end
+  test pending (user to run `docker compose up -d --build` and
+  confirm)
+
+### Gotchas captured during deploy
+
+| Snag | Root cause | Fix |
+| ---- | ---------- | --- |
+| Railway built without finding Dockerfile | Service Root Directory still at repo root | Set Root Directory to `backend` in service Settings |
+| Vercel fetch raised "Failed to parse URL" | `NEXT_PUBLIC_API_URL` saved without `https://` scheme | Fix env var, **redeploy** (NEXT_PUBLIC_* are build-time) |
+| Initial CORS too permissive (`*`) | Temporary value used before Vercel URL was known | Tighten to exact Vercel URL once known |
+
+### How a new user gets it running
+
+```bash
+# Hosted demo (zero setup): open the Vercel URL.
+# Self-host (full local stack):
+git clone <repo> && cd medullo-cognitive-companion
+cp .env.example .env       # set GEMINI_API_KEY
+docker compose up -d --build
+# → http://localhost:3000 + extension pointed at localhost:8000
+```

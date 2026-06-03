@@ -3,6 +3,8 @@
 > A quiet second working memory.
 > Built for the **International AI Agents Hackathon**.
 
+**🌿 Live demo:** [medullo-cognitive-companion.vercel.app](https://medullo-cognitive-companion.vercel.app)
+
 Medullo is an AI cognitive continuity system. It quietly observes the
 lightweight signals of your digital workflow — tabs you switch to, pages you
 linger on, moments your focus drifts — and reconstructs *what you were
@@ -121,6 +123,25 @@ generation.
 
 ---
 
+## Try it
+
+Two paths, depending on what you want:
+
+- **Just look at it** — open the [live demo](https://medullo-cognitive-companion.vercel.app).
+  You'll see the developer's own cognitive snapshots rendered against the
+  hosted backend. No install required.
+
+- **Use it on your own browsing** — sideload the Chrome extension from
+  [extension/](extension/) (`chrome://extensions` → Developer mode → Load
+  unpacked), then point its backend URL at either the hosted demo or a
+  self-hosted stack (see **Setup** below). The same extension works
+  against either.
+
+Full deployment + self-host instructions live in
+[DEPLOYMENT.md](DEPLOYMENT.md).
+
+---
+
 ## Setup
 
 You'll need:
@@ -131,8 +152,11 @@ You'll need:
 - **VS Code** (optional, for the IDE-context extension)
 - A **Gemini API key** from [aistudio.google.com](https://aistudio.google.com/apikey)
 
-The components below should be started in this order so the extensions
-have something to talk to.
+The fastest local setup is `docker compose up -d --build` at the repo
+root — see [DEPLOYMENT.md § Self-host](DEPLOYMENT.md#path-2--self-host-docker-compose).
+
+If you'd rather run each component by hand, the instructions below cover
+that. Start them in order so the extensions have something to talk to.
 
 ### 1. Backend
 
@@ -347,5 +371,7 @@ The hidden cognitive tax of context switching is one of the most universal
 problems in modern knowledge work. We think AI is uniquely well-suited to
 help with it — not by automating decisions, but by gently restoring the
 context you already had.
+
+Try it: [medullo-cognitive-companion.vercel.app](https://medullo-cognitive-companion.vercel.app)
 
 Welcome back.
