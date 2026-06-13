@@ -205,8 +205,10 @@ empty state — that's expected.
 3. Click **Load unpacked** and select the `extension/` folder
 4. Pin the Medullo icon to the toolbar (puzzle-piece menu → pin)
 
-The extension expects the backend on `localhost:8000`. The popup will
-surface a `Last error` line if it can't reach the server.
+The published extension defaults to the hosted Railway backend. For local
+self-hosting, open the popup, click the **Backend** row, and set it to
+`http://localhost:8000`. The popup will surface a `Last error` line if it
+can't reach the selected server.
 
 ### 4. VS Code extension (optional)
 

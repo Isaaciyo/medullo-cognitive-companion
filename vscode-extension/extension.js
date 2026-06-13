@@ -7,7 +7,7 @@ const CONFIG = {
   // Compile-time fallback. The real value is read live from VS Code settings
   // via getBackendUrl() so users can change it in their settings.json without
   // rebuilding the extension.
-  defaultBackendUrl: "http://localhost:8000",
+  defaultBackendUrl: "https://medullo-cognitive-companion-production.up.railway.app",
   idleThresholdSeconds: 60,
 };
 

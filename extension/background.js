@@ -17,9 +17,9 @@ const STORAGE_KEYS = {
 };
 
 // User-overridable backend URL. Falls back to the compile-time default in
-// config.js (localhost) for fresh installs. Always read via getBackendUrl()
-// rather than CONFIG.backendUrl directly — the storage value is the source
-// of truth once the user has set one via the popup.
+// config.js (the hosted Railway backend) for fresh installs. Always read via
+// getBackendUrl() rather than CONFIG.backendUrl directly — the storage value
+// is the source of truth once the user has set one via the popup.
 async function getBackendUrl() {
   const stored = await chrome.storage.local.get(STORAGE_KEYS.backendUrl);
   const url = stored[STORAGE_KEYS.backendUrl];
@@ -52,6 +52,10 @@ chrome.runtime.onInstalled.addListener(async () => {
   await chrome.alarms.create("medullo:flush", {
     periodInMinutes: Math.max(CONFIG.flushIntervalSeconds / 60, 0.25),
   });
+  await chrome.alarms.create("medullo:checkVsCode", {
+    periodInMinutes: 1,
+  });
+  await openAppWithToken("/connect", { fallbackToBareConnect: true });
 });
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -85,6 +89,10 @@ async function getBrowsingSessionId() {
       STORAGE_KEYS.browsingSessionId
     ] || (await ensureBrowsingSession(true))
   );
+}
+
+function getFrontendUrl() {
+  return CONFIG.frontendUrl.replace(/\/+$/, "");
 }
 
 async function getAccessToken() {
@@ -123,6 +131,29 @@ async function authHeaders() {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
   };
+}
+
+async function appUrlWithToken(path = "/") {
+  const token = await ensureAccessToken();
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${getFrontendUrl()}${normalizedPath}#token=${encodeURIComponent(token)}`;
+}
+
+async function openAppWithToken(path = "/", { fallbackToBareConnect = false } = {}) {
+  try {
+    const url = await appUrlWithToken(path);
+    await chrome.tabs.create({ url });
+  } catch (err) {
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.lastError]: {
+        message: `Could not connect Medullo web app: ${String(err)}`,
+        at: new Date().toISOString(),
+      },
+    });
+    if (fallbackToBareConnect) {
+      await chrome.tabs.create({ url: `${getFrontendUrl()}/connect` });
+    }
+  }
 }
 
 // ---------- event enqueue + flush ----------
@@ -372,18 +403,6 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 });
 
-// Start VS Code monitoring on install
-chrome.runtime.onInstalled.addListener(async () => {
-  await ensureBrowsingSession(true);
-  await chrome.idle.setDetectionInterval(CONFIG.idleThresholdSeconds);
-  await chrome.alarms.create("medullo:flush", {
-    periodInMinutes: Math.max(CONFIG.flushIntervalSeconds / 60, 0.25),
-  });
-  await chrome.alarms.create("medullo:checkVsCode", {
-    periodInMinutes: 1,
-  });
-});
-
 // ---------- Interruption alerts ----------
 
 async function showInterruptionAlert(reason) {
@@ -437,8 +456,8 @@ async function showInterruptionAlert(reason) {
 chrome.notifications.onButtonClicked.addListener((notifId, btnIdx) => {
   if (notifId.startsWith("medullo:alert:")) {
     if (btnIdx === 0) {
-      // "Resume work" button - open Medullo home page
-      chrome.tabs.create({ url: "http://localhost:3000" });
+      // "Resume work" button - open Medullo home page scoped to this token.
+      openAppWithToken("/");
     }
     // "Dismiss" (btnIdx === 1) - just close notification, alert won't repeat until context switches
     chrome.notifications.clear(notifId);
@@ -476,6 +495,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       });
     } else if (msg?.type === "medullo:flushNow") {
       await flush();
+      sendResponse({ ok: true });
+    } else if (msg?.type === "medullo:openApp") {
+      await openAppWithToken(msg.path || "/");
       sendResponse({ ok: true });
     } else if (msg?.type === "medullo:resetSession") {
       await ensureBrowsingSession(true);

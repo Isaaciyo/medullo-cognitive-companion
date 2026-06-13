@@ -22,11 +22,16 @@ app = FastAPI(
 # `CORS_ORIGINS` to a comma-separated list including the deployed frontend
 # domain (e.g. "https://medullo.vercel.app"). Any value containing a `*`
 # wildcard gets compiled into the regex pass instead of the literal list.
-_default_origins = "http://localhost:3000,http://127.0.0.1:3000"
+_builtin_origins = {
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://medullo-cognitive-companion.vercel.app",
+}
+_default_origins = ",".join(sorted(_builtin_origins))
 _raw_origins = os.getenv("CORS_ORIGINS", _default_origins)
 _explicit: list[str] = []
 _wildcards: list[str] = []
-for o in (item.strip() for item in _raw_origins.split(",")):
+for o in [*_builtin_origins, *(item.strip() for item in _raw_origins.split(","))]:
     if not o:
         continue
     (_wildcards if "*" in o else _explicit).append(o)

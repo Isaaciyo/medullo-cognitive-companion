@@ -147,13 +147,13 @@ docker compose up -d --build         # rebuild after pulling new code
 
 Chrome extension (sideloaded for now):
 1. `chrome://extensions` → Developer mode → Load unpacked → `extension/`
-2. The default backend URL is `http://localhost:8000` — no settings change
-   needed for self-host
+2. Open the popup → click the **Backend** row → set it to
+   `http://localhost:8000` for self-host
 
 VS Code extension:
-1. `cd vscode-extension && vsce package` produces `medullo-vscode-0.1.0.vsix`
+1. `cd vscode-extension && vsce package` produces a `medullo-vscode-*.vsix` file
 2. In VS Code: Extensions → ⋯ → Install from VSIX → select the file
-3. Open Settings → search "Medullo" → confirm `medullo.backendUrl` is
+3. Open Settings → search "Medullo" → set `medullo.backendUrl` to
    `http://localhost:8000`
 
 ---
@@ -243,19 +243,19 @@ All `/events/*` and `/sessions/*` endpoints require `Authorization: Bearer
 
 | Variable               | Default                  | Notes                                  |
 | ---------------------- | ------------------------ | -------------------------------------- |
-| `NEXT_PUBLIC_API_URL`  | `http://localhost:8000`  | Baked at build time. Rebuild to change. |
+| `NEXT_PUBLIC_API_URL`  | Hosted Railway backend  | Baked at build time. Docker compose overrides this to `http://localhost:8000` for self-hosting. |
 
 ### Extension settings (Chrome)
 
 | Setting     | Default                  | Where                              |
 | ----------- | ------------------------ | ---------------------------------- |
-| Backend URL | `http://localhost:8000`  | Popup → click the "Backend" row    |
+| Backend URL | Hosted Railway backend  | Popup → click the "Backend" row    |
 
 ### Extension settings (VS Code)
 
 | Setting              | Default                  | Where                          |
 | -------------------- | ------------------------ | ------------------------------ |
-| `medullo.backendUrl` | `http://localhost:8000`  | Settings UI or `settings.json` |
+| `medullo.backendUrl` | Hosted Railway backend  | Settings UI or `settings.json` |
 
 ---
 

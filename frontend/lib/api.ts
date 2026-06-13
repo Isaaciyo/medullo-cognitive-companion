@@ -14,9 +14,10 @@ import type { Session, SessionDetail, Snapshot } from "./types";
 const SERVER_API_URL =
   process.env.INTERNAL_API_URL ??
   process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:8000";
+  "https://medullo-cognitive-companion-production.up.railway.app";
 const BROWSER_API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_URL ??
+  "https://medullo-cognitive-companion-production.up.railway.app";
 
 const ACCESS_TOKEN_KEY = "medullo:accessToken";
 
@@ -62,7 +63,15 @@ export function captureAccessTokenFromUrl(): string | null {
 async function get<T>(path: string): Promise<T | null> {
   const token = getStoredAccessToken();
   const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-  const res = await fetch(`${apiUrl()}${path}`, { cache: "no-store", headers });
+  let res: Response;
+  try {
+    res = await fetch(`${apiUrl()}${path}`, { cache: "no-store", headers });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `${message}. The API is ${apiUrl()}; check that Railway is running and CORS_ORIGINS includes this Vercel domain.`
+    );
+  }
   if (res.status === 401) throw new Error("Medullo needs your access token.");
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);

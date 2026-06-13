@@ -62,8 +62,9 @@ The VS Code extension does **not** collect:
 
 ## Where the data goes
 
-By default, both extensions send events to **`http://localhost:8000`** — a
-backend running on your own machine.
+By default, published extensions send events to the hosted Medullo backend on
+Railway. For local self-hosting, set the backend URL to
+**`http://localhost:8000`**.
 
 You can change the backend URL at any time:
 
@@ -77,6 +78,11 @@ When you change the URL — for example, to point at a Medullo backend you've
 deployed to Railway/Fly/etc. — that is where your data goes. Hosted backends
 use bearer-token authentication so one user's events, sessions, and snapshots
 are not returned to another user.
+
+When the Chrome extension opens the web UI, it passes the access token in the
+URL hash (`#token=...`) so the page can connect without manual setup. Hash
+fragments are handled by the browser and are not sent as part of the HTTP
+request to the frontend host.
 
 ---
 

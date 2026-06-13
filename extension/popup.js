@@ -49,6 +49,11 @@ $("reset").addEventListener("click", async () => {
   await refresh();
 });
 
+$("open-app").addEventListener("click", async () => {
+  await chrome.runtime.sendMessage({ type: "medullo:openApp", path: "/" });
+  await refresh();
+});
+
 $("copy-token").addEventListener("click", async () => {
   const result = await chrome.runtime.sendMessage({ type: "medullo:getAccessToken" });
   if (!result?.ok || !result.accessToken) return;

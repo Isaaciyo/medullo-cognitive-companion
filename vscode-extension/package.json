@@ -2,7 +2,7 @@
   "name": "medullo-vscode",
   "displayName": "Medullo — Code Context",
   "description": "A quiet companion that captures where you are in your code, so Medullo can reconstruct your train of thought after an interruption.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "medullo",
   "license": "MIT",
   "icon": "icon.png",
@@ -44,8 +44,8 @@
       "properties": {
         "medullo.backendUrl": {
           "type": "string",
-          "default": "http://localhost:8000",
-          "description": "URL of your Medullo backend. Use http://localhost:8000 for self-hosted, or your hosted backend URL (e.g. https://medullo-cognitive-companion-production.up.railway.app)."
+          "default": "https://medullo-cognitive-companion-production.up.railway.app",
+          "description": "URL of your Medullo backend. Defaults to the hosted Railway backend. Use http://localhost:8000 for self-hosted."
         },
         "medullo.accessToken": {
           "type": "string",

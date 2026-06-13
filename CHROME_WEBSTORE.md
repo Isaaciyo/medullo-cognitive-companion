@@ -66,6 +66,7 @@ Medullo is a calm, AI-powered cognitive continuity tool. When you get interrupte
 How it works:
 • The extension observes lightweight signals: which tab you're on, when you switch, when you go idle, what you searched for.
 • Those signals get grouped into coherent "work sessions" by a sessionization engine running on a backend you control.
+• On first install, Medullo creates a private access token and opens the web app already connected.
 • When an interruption is detected (idle, screen lock, or a long stare at a New Tab page), a structured cognitive snapshot is generated — what you were doing, why, what got done, where you got stuck, and what to try next.
 • When you return, the snapshot is waiting on the resume page. No more "what was I doing?"
 
@@ -83,8 +84,8 @@ What's NOT collected
 • No analytics or third-party tracking
 
 Where your data goes
-• By default, to a backend running on your own machine (http://localhost:8000)
-• You can change the backend URL to anywhere you self-host it
+• By default, to the hosted Medullo backend on Railway
+• You can change the backend URL to your own self-hosted backend
 • Hosted backends separate users with bearer-token authentication, so your snapshots are scoped to your account
 
 The product is memory augmentation, never monitoring.

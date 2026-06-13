@@ -46,8 +46,9 @@ install on your machine) or Docker (free, fully local).
 3. The Medullo icon appears in your toolbar. Pin it (puzzle-piece menu → 📌) so it's always visible.
 
 You'll see a **Last error: Failed to fetch** in the popup. That's
-expected — the extension is looking for your backend, which doesn't
-exist yet. You'll fix that in step 4 after setting one up.
+expected if the selected backend isn't reachable yet. Fresh installs default
+to the hosted Railway backend; self-hosted Docker users will switch it to
+localhost in step 4.
 
 ---
 
@@ -174,14 +175,14 @@ Paste whichever one matches into both extensions:
 1. Click the Medullo icon in your toolbar
 2. Click the **Backend** row in the popup
 3. Paste your backend URL → **Save**
-4. Click **Flush now** once. The extension creates an access token on your
-   backend and stores it locally.
+4. Click **Open app**. The extension creates an access token on your backend,
+   opens the web UI, and connects it automatically.
 5. The "Last error" line disappears and the status dot turns green
 
 **Resume UI:**
-1. Click **Copy token** in the Chrome extension popup
-2. Open the Medullo web UI
-3. Paste the token when prompted
+Normally there is nothing to paste. The extension opens the web UI with the
+token in the URL hash and the UI saves it locally. If that bridge ever fails,
+the popup still has **Copy token** as a fallback.
 
 That token is what keeps the web UI scoped to your own sessions and snapshots.
 

@@ -41,14 +41,14 @@ vsce package
 You'll see something like:
 
 ```
-DONE  Packaged: …/medullo-vscode-0.1.0.vsix (X files, Y KB)
+DONE  Packaged: …/medullo-vscode-<version>.vsix (X files, Y KB)
 ```
 
 **Inspect what got bundled** before publishing — the `.vscodeignore` file
 controls this, but worth a sanity check:
 
 ```bash
-unzip -l medullo-vscode-0.1.0.vsix
+unzip -l medullo-vscode-*.vsix
 ```
 
 Confirm presence of: `extension.js`, `package.json`, `README.md`,

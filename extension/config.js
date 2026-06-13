@@ -1,6 +1,7 @@
 // Runtime config for the extension. Keep small and dependency-free.
 export const CONFIG = {
-  backendUrl: "http://localhost:8000",
+  backendUrl: "https://medullo-cognitive-companion-production.up.railway.app",
+  frontendUrl: "https://medullo-cognitive-companion.vercel.app",
   flushIntervalSeconds: 15,
   flushBatchMax: 50,
   idleThresholdSeconds: 60,

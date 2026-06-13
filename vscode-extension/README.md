@@ -41,12 +41,11 @@ surrounding lines — the surrounding code itself is never sent.
 4. That's it. Open a code file and start working — the extension reports
    silently in the background.
 
-**Default backend URL:** `http://localhost:8000` (for the standard
-self-host path).
+**Default backend URL:**
+`https://medullo-cognitive-companion-production.up.railway.app`
 
-To use against a hosted Medullo backend, paste the deployed URL into the
-setting — for example
-`https://medullo-cognitive-companion-production.up.railway.app`.
+To use a self-hosted backend, set `medullo.backendUrl` to
+`http://localhost:8000`.
 
 ---
 
@@ -54,7 +53,7 @@ setting — for example
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| `medullo.backendUrl` | `http://localhost:8000` | URL of the Medullo backend that should receive code context events. |
+| `medullo.backendUrl` | Hosted Railway backend | URL of the Medullo backend that should receive code context events. |
 | `medullo.accessToken` | `""` | Optional bearer token. Use the Chrome extension's copied token to share one account. |
 
 Change it via the Settings UI (**Code → Preferences → Settings → "Medullo"**)
