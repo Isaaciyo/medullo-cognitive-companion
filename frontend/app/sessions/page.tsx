@@ -1,19 +1,50 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { AmbientBackground } from "@/components/AmbientBackground";
-import { listSessions } from "@/lib/api";
+import { AuthTokenPrompt } from "@/components/AuthTokenPrompt";
+import {
+  captureAccessTokenFromUrl,
+  clearStoredAccessToken,
+  getStoredAccessToken,
+  listSessions,
+} from "@/lib/api";
 import type { Session } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export default function SessionsPage() {
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [needsToken, setNeedsToken] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-export default async function SessionsPage() {
-  let sessions: Session[] = [];
-  let error: string | null = null;
-
-  try {
-    sessions = await listSessions({ interrupted: true, limit: 12 });
-  } catch (e) {
-    error = e instanceof Error ? e.message : "Could not reach Medullo.";
+  async function load() {
+    setLoading(true);
+    setError(null);
+    captureAccessTokenFromUrl();
+    if (!getStoredAccessToken()) {
+      setNeedsToken(true);
+      setLoading(false);
+      return;
+    }
+    setNeedsToken(false);
+    try {
+      setSessions(await listSessions({ interrupted: true, limit: 12 }));
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Could not reach Medullo.";
+      if (message.includes("access token")) {
+        clearStoredAccessToken();
+        setNeedsToken(true);
+      } else {
+        setError(message);
+      }
+    } finally {
+      setLoading(false);
+    }
   }
+
+  useEffect(() => {
+    load();
+  }, []);
 
   return (
     <main className="relative min-h-screen w-full overflow-x-hidden fade-in-canvas">
@@ -38,7 +69,13 @@ export default async function SessionsPage() {
           </div>
         </header>
 
-        {error ? (
+        {needsToken ? (
+          <AuthTokenPrompt onTokenSaved={load} />
+        ) : loading ? (
+          <section className="rounded-3xl border border-white/70 bg-white/75 p-8 text-center shadow-xl shadow-mist-200/70 backdrop-blur">
+            <h2 className="font-welcome text-4xl text-ink-900">Loading.</h2>
+          </section>
+        ) : error ? (
           <section className="mx-auto max-w-md rounded-3xl border border-white/70 bg-white/75 p-8 text-center shadow-xl shadow-mist-200/70 backdrop-blur">
             <h2 className="font-welcome text-4xl text-ink-900">Soon.</h2>
             <p className="mt-4 text-sm text-ink-700">The session archive needs the backend to be running.</p>

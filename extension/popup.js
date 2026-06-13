@@ -13,6 +13,11 @@ function formatRelative(iso) {
 
 function render(status) {
   $("backend-url").textContent = status.backendUrl;
+  $("account").textContent = status.userId
+    ? `${status.userId.slice(0, 8)}…`
+    : status.hasAccessToken
+      ? "Linked"
+      : "Not linked";
   $("queued").textContent = String(status.queued);
   $("sent").textContent = String(status.stats?.sent ?? 0);
   $("last-flush").textContent = formatRelative(status.stats?.lastFlushAt);
@@ -41,6 +46,19 @@ $("flush").addEventListener("click", async () => {
 
 $("reset").addEventListener("click", async () => {
   await chrome.runtime.sendMessage({ type: "medullo:resetSession" });
+  await refresh();
+});
+
+$("copy-token").addEventListener("click", async () => {
+  const result = await chrome.runtime.sendMessage({ type: "medullo:getAccessToken" });
+  if (!result?.ok || !result.accessToken) return;
+  await navigator.clipboard.writeText(result.accessToken);
+  const btn = $("copy-token");
+  const previous = btn.textContent;
+  btn.textContent = "Copied";
+  setTimeout(() => {
+    btn.textContent = previous;
+  }, 1200);
   await refresh();
 });
 

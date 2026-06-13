@@ -68,6 +68,34 @@ class IngestResult(BaseModel):
     accepted: int
 
 
+class DeviceTokenCreate(BaseModel):
+    device_name: Optional[str] = Field(default=None, max_length=120)
+    install_id: Optional[str] = Field(default=None, max_length=128)
+
+    @field_validator("device_name", "install_id")
+    @classmethod
+    def _strip_optional(cls, v: Optional[str]) -> Optional[str]:
+        if not isinstance(v, str):
+            return v
+        v = v.strip()
+        return v or None
+
+
+class DeviceTokenOut(BaseModel):
+    user_id: str
+    device_id: str
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    label: Optional[str] = None
+    created_at: datetime
+
+
 class SessionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

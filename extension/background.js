@@ -6,6 +6,10 @@ import { CONFIG, SEARCH_HOSTS } from "./config.js";
 const STORAGE_KEYS = {
   queue: "medullo:queue",
   browsingSessionId: "medullo:browsingSessionId",
+  installId: "medullo:installId",
+  accessToken: "medullo:accessToken",
+  userId: "medullo:userId",
+  deviceId: "medullo:deviceId",
   stats: "medullo:stats",
   lastError: "medullo:lastError",
   alertState: "medullo:alertState",
@@ -65,12 +69,60 @@ async function ensureBrowsingSession(forceNew = false) {
   return id;
 }
 
+async function ensureInstallId() {
+  const existing = (await chrome.storage.local.get(STORAGE_KEYS.installId))[
+    STORAGE_KEYS.installId
+  ];
+  if (existing) return existing;
+  const id = crypto.randomUUID();
+  await chrome.storage.local.set({ [STORAGE_KEYS.installId]: id });
+  return id;
+}
+
 async function getBrowsingSessionId() {
   return (
     (await chrome.storage.local.get(STORAGE_KEYS.browsingSessionId))[
       STORAGE_KEYS.browsingSessionId
     ] || (await ensureBrowsingSession(true))
   );
+}
+
+async function getAccessToken() {
+  const data = await chrome.storage.local.get(STORAGE_KEYS.accessToken);
+  const token = data[STORAGE_KEYS.accessToken];
+  return typeof token === "string" && token.trim() ? token : null;
+}
+
+async function ensureAccessToken() {
+  const existing = await getAccessToken();
+  if (existing) return existing;
+
+  const backendUrl = await getBackendUrl();
+  const installId = await ensureInstallId();
+  const res = await fetch(`${backendUrl}/auth/devices`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      install_id: installId,
+      device_name: "Chrome extension",
+    }),
+  });
+  if (!res.ok) throw new Error(`auth HTTP ${res.status}`);
+  const payload = await res.json();
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.accessToken]: payload.access_token,
+    [STORAGE_KEYS.userId]: payload.user_id,
+    [STORAGE_KEYS.deviceId]: payload.device_id,
+  });
+  return payload.access_token;
+}
+
+async function authHeaders() {
+  const token = await ensureAccessToken();
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
 }
 
 // ---------- event enqueue + flush ----------
@@ -90,11 +142,11 @@ async function flush() {
   const queue = data[STORAGE_KEYS.queue] || [];
   if (queue.length === 0) return;
 
+  const backendUrl = await getBackendUrl();
   try {
-    const backendUrl = await getBackendUrl();
     const res = await fetch(`${backendUrl}/events/batch`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await authHeaders(),
       body: JSON.stringify({ events: queue }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -102,8 +154,12 @@ async function flush() {
     await bumpStats(queue.length);
     await chrome.storage.local.remove(STORAGE_KEYS.lastError);
   } catch (err) {
+    const raw = String(err);
+    const message = raw.includes("Failed to fetch")
+      ? `Could not reach ${backendUrl}. Check that the backend is running and the URL is correct.`
+      : raw;
     await chrome.storage.local.set({
-      [STORAGE_KEYS.lastError]: { message: String(err), at: new Date().toISOString() },
+      [STORAGE_KEYS.lastError]: { message, at: new Date().toISOString() },
     });
   }
 }
@@ -334,7 +390,10 @@ async function showInterruptionAlert(reason) {
   try {
     // Fetch the last interrupted session with a snapshot
     const backendUrl = await getBackendUrl();
-    const res = await fetch(`${backendUrl}/sessions/last-interrupted`);
+    const token = await ensureAccessToken();
+    const res = await fetch(`${backendUrl}/sessions/last-interrupted`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (!res.ok) return;
     
     const session = await res.json();
@@ -402,12 +461,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         STORAGE_KEYS.stats,
         STORAGE_KEYS.lastError,
         STORAGE_KEYS.browsingSessionId,
+        STORAGE_KEYS.userId,
+        STORAGE_KEYS.deviceId,
       ]);
       sendResponse({
         queued: (data[STORAGE_KEYS.queue] || []).length,
         stats: data[STORAGE_KEYS.stats] || { sent: 0, lastFlushAt: null },
         lastError: data[STORAGE_KEYS.lastError] || null,
         browsingSessionId: data[STORAGE_KEYS.browsingSessionId] || null,
+        userId: data[STORAGE_KEYS.userId] || null,
+        deviceId: data[STORAGE_KEYS.deviceId] || null,
+        hasAccessToken: Boolean(await getAccessToken()),
         backendUrl: await getBackendUrl(),
       });
     } else if (msg?.type === "medullo:flushNow") {
@@ -423,10 +487,21 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         return;
       }
       await chrome.storage.local.set({ [STORAGE_KEYS.backendUrl]: url });
+      await chrome.storage.local.remove([
+        STORAGE_KEYS.accessToken,
+        STORAGE_KEYS.userId,
+        STORAGE_KEYS.deviceId,
+      ]);
       // Clear any stale connection error so the popup status dot recovers
       // immediately the next time flush() succeeds against the new URL.
       await chrome.storage.local.remove(STORAGE_KEYS.lastError);
       sendResponse({ ok: true, backendUrl: url });
+    } else if (msg?.type === "medullo:getAccessToken") {
+      try {
+        sendResponse({ ok: true, accessToken: await ensureAccessToken() });
+      } catch (err) {
+        sendResponse({ ok: false, error: String(err) });
+      }
     }
   })();
   return true; // keep the channel open for async sendResponse

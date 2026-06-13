@@ -1,25 +1,57 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { AmbientBackground } from "@/components/AmbientBackground";
+import { AuthTokenPrompt } from "@/components/AuthTokenPrompt";
 import { EmptyState } from "@/components/EmptyState";
 import { WelcomeCard } from "@/components/WelcomeCard";
-import { getLastInterruptedSession, getSnapshot } from "@/lib/api";
+import {
+  captureAccessTokenFromUrl,
+  clearStoredAccessToken,
+  getLastInterruptedSession,
+  getSnapshot,
+  getStoredAccessToken,
+} from "@/lib/api";
+import type { SessionDetail, Snapshot } from "@/lib/types";
 
-// Always fresh — the resume UI is a moment-of-return surface, never cached.
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export default function HomePage() {
+  const [session, setSession] = useState<SessionDetail | null>(null);
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [needsToken, setNeedsToken] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-export default async function HomePage() {
-  let session = null;
-  let snapshot = null;
-  let error: string | null = null;
-
-  try {
-    session = await getLastInterruptedSession();
-    if (session) {
-      snapshot = await getSnapshot(session.id);
+  async function load() {
+    setLoading(true);
+    setError(null);
+    captureAccessTokenFromUrl();
+    if (!getStoredAccessToken()) {
+      setNeedsToken(true);
+      setLoading(false);
+      return;
     }
-  } catch (e) {
-    error = e instanceof Error ? e.message : "Could not reach Medullo.";
+    setNeedsToken(false);
+    try {
+      const nextSession = await getLastInterruptedSession();
+      const nextSnapshot = nextSession ? await getSnapshot(nextSession.id) : null;
+      setSession(nextSession);
+      setSnapshot(nextSnapshot);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Could not reach Medullo.";
+      if (message.includes("access token")) {
+        clearStoredAccessToken();
+        setNeedsToken(true);
+      } else {
+        setError(message);
+      }
+    } finally {
+      setLoading(false);
+    }
   }
+
+  useEffect(() => {
+    load();
+  }, []);
 
   return (
     <main className="relative min-h-screen w-full fade-in-canvas">
@@ -41,7 +73,11 @@ export default async function HomePage() {
             <span className="block text-[0.95rem] font-medium">All sessions</span>
           </a>
         </div>
-        {error ? (
+        {needsToken ? (
+          <AuthTokenPrompt onTokenSaved={load} />
+        ) : loading ? (
+          <EmptyState />
+        ) : error ? (
           <BackendOffline message={error} />
         ) : session && snapshot ? (
           <WelcomeCard session={session} snapshot={snapshot} />
@@ -65,6 +101,12 @@ function BackendOffline({ message }: { message: string }) {
         Make sure the backend is running on{" "}
         <code className="rounded bg-mist-100 px-1.5 py-0.5">localhost:8000</code>.
       </p>
+      <a
+        href="/connect"
+        className="mt-6 inline-flex rounded-full border border-white/80 bg-white/85 px-4 py-2 text-sm text-ink-700 shadow-lg shadow-mist-200/70 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white"
+      >
+        Connect account
+      </a>
     </section>
   );
 }

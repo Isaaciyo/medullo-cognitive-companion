@@ -21,7 +21,7 @@ body {
   color: var(--ink);
   font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
   font-size: 13px;
-  width: 280px;
+  width: 300px;
 }
 
 main {
@@ -166,7 +166,8 @@ h1 {
 }
 
 .actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
   margin-top: 12px;
 }

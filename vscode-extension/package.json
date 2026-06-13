@@ -1,19 +1,39 @@
 {
   "name": "medullo-vscode",
   "displayName": "Medullo — Code Context",
-  "description": "Captures your active file and cursor position for Medullo cognitive continuity",
+  "description": "A quiet companion that captures where you are in your code, so Medullo can reconstruct your train of thought after an interruption.",
   "version": "0.1.0",
   "publisher": "medullo",
+  "license": "MIT",
+  "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/Isaaciyo/medullo-cognitive-companion.git"
+  },
+  "homepage": "https://medullo-cognitive-companion.vercel.app",
+  "bugs": {
+    "url": "https://github.com/Isaaciyo/medullo-cognitive-companion/issues"
   },
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Education"
   ],
+  "keywords": [
+    "cognitive continuity",
+    "context capture",
+    "productivity",
+    "memory",
+    "ai",
+    "focus",
+    "interruption"
+  ],
+  "galleryBanner": {
+    "color": "#F3EFFD",
+    "theme": "light"
+  },
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -25,7 +45,12 @@
         "medullo.backendUrl": {
           "type": "string",
           "default": "http://localhost:8000",
-          "description": "URL of your Medullo backend. Use http://localhost:8000 for self-hosted, or your hosted backend URL (e.g. https://medullo-api.up.railway.app)."
+          "description": "URL of your Medullo backend. Use http://localhost:8000 for self-hosted, or your hosted backend URL (e.g. https://medullo-cognitive-companion-production.up.railway.app)."
+        },
+        "medullo.accessToken": {
+          "type": "string",
+          "default": "",
+          "description": "Optional Medullo bearer token. Paste the token from the Chrome extension to send browser and VS Code context to the same account."
         }
       }
     }

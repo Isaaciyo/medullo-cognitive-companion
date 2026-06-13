@@ -350,6 +350,7 @@ def _close(
 
 def _new_session(db: DbSession, event: Event) -> Session:
     s = Session(
+        user_id=event.user_id,
         started_at=event.timestamp,
         ended_at=_event_end(event),
         status="active",
@@ -398,6 +399,7 @@ def _find_recent_session_by_browsing_id(
     candidate = (
         db.query(Session)
         .filter(
+            Session.user_id == event.user_id,
             Session.status == "closed",
             Session.primary_domain == event.domain,
             # Check extra for browsing_session_id if it was stored, or infer from events
@@ -411,7 +413,12 @@ def _find_recent_session_by_browsing_id(
     if candidate and candidate.ended_at and candidate.ended_at >= recent_cutoff:
         # Simple heuristic: if the closed session has the same domain and ended recently,
         # and our new event is from the same browsing context, absorb it.
-        existing_events = db.query(Event).filter(Event.session_id == candidate.id).all()
+        existing_events = (
+            db.query(Event)
+            .filter(Event.user_id == event.user_id)
+            .filter(Event.session_id == candidate.id)
+            .all()
+        )
         if any(e.browsing_session_id == browsing_session_id for e in existing_events):
             return candidate
 
@@ -511,9 +518,10 @@ def _apply_event(
 # ---------- public API ----------
 
 
-def get_active_session(db: DbSession) -> Optional[Session]:
+def get_active_session(db: DbSession, user_id: str) -> Optional[Session]:
     return (
         db.query(Session)
+        .filter(Session.user_id == user_id)
         .filter(Session.status == "active")
         .order_by(desc(Session.started_at))
         .first()
@@ -527,9 +535,15 @@ def assign_session_for_event(db: DbSession, event: Event) -> Optional[Session]:
     events between sessions; rebuild does that).
     """
     if event.session_id is not None:
-        return db.get(Session, event.session_id)
+        session = db.get(Session, event.session_id)
+        if session is not None and session.user_id == event.user_id:
+            return session
+        return None
 
-    active = get_active_session(db)
+    if not event.user_id:
+        raise ValueError("event.user_id is required for sessionization")
+
+    active = get_active_session(db, event.user_id)
     return _apply_event(active, event, db)
 
 
@@ -540,21 +554,26 @@ class RebuildSummary:
     events_skipped: int
 
 
-def rebuild_all_sessions(db: DbSession) -> RebuildSummary:
+def rebuild_all_sessions(db: DbSession, user_id: str) -> RebuildSummary:
     """Discard all sessions and rebuild from the raw event stream.
 
     Lets us iterate the heuristic without losing observations — the raw
     events are the source of truth, sessions are derived.
     """
-    db.query(Event).update({Event.session_id: None})
-    db.query(Session).delete()
+    db.query(Event).filter(Event.user_id == user_id).update({Event.session_id: None})
+    db.query(Session).filter(Session.user_id == user_id).delete()
     db.flush()
 
     assigned = 0
     skipped = 0
     active: Optional[Session] = None
 
-    events = db.query(Event).order_by(Event.timestamp.asc(), Event.id.asc()).all()
+    events = (
+        db.query(Event)
+        .filter(Event.user_id == user_id)
+        .order_by(Event.timestamp.asc(), Event.id.asc())
+        .all()
+    )
     for ev in events:
         result = _apply_event(active, ev, db)
         if ev.session_id is not None:
@@ -566,7 +585,7 @@ def rebuild_all_sessions(db: DbSession) -> RebuildSummary:
         elif result is not None and result.status == "closed":
             active = None
 
-    created = db.query(Session).count()
+    created = db.query(Session).filter(Session.user_id == user_id).count()
     db.commit()
     return RebuildSummary(
         sessions_created=created, events_assigned=assigned, events_skipped=skipped

@@ -107,7 +107,10 @@ structured snapshot the instant your attention slipped.
 
 ## Architecture
 
-The project is intentionally local-first. Everything runs on your machine:
+The project is local-first by default, but now supports a hosted multi-user
+backend. In hosted mode, each extension/UI provisions a bearer token that maps
+to a backend-owned user ID; every event, session, and snapshot query is scoped
+to that authenticated user.
 
 | Component         | Stack                                     |
 | ----------------- | ----------------------------------------- |
@@ -117,9 +120,9 @@ The project is intentionally local-first. Everything runs on your machine:
 | VS Code extension | VS Code Extension API · Node              |
 | Frontend          | Next.js 14 (App Router) · Tailwind · Framer Motion |
 
-There is no auth, no cloud database, no third-party telemetry. The only
-network call to leave your machine is the Gemini API request for snapshot
-generation.
+The self-host path still runs fully on your machine. The hosted path can run on
+Railway with your Gemini API key; user data is separated by authenticated
+`user_id`, not by trusting client-supplied IDs.
 
 ---
 

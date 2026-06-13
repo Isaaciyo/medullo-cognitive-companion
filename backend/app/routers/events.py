@@ -5,18 +5,21 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
+from ..auth import get_current_user
 from ..database import get_db
 from ..interruptions import auto_snapshot_session, should_auto_snapshot
 from ..models import Event
 from ..models import Session as SessionModel
+from ..models import User
 from ..schemas import EventBatch, EventIn, EventOut, IngestResult
 from ..sessionization import assign_session_for_event
 
 router = APIRouter(prefix="/events", tags=["events"])
 
 
-def _persist(db: Session, e: EventIn) -> tuple[Event, Optional[SessionModel]]:
+def _persist(db: Session, e: EventIn, user: User) -> tuple[Event, Optional[SessionModel]]:
     row = Event(
+        user_id=user.id,
         timestamp=e.timestamp.replace(tzinfo=None) if e.timestamp.tzinfo else e.timestamp,
         event_type=e.event_type,
         app=e.app,
@@ -52,8 +55,9 @@ def ingest_single(
     event: EventIn,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> IngestResult:
-    _, sess = _persist(db, event)
+    _, sess = _persist(db, event, current_user)
     db.commit()
     _enqueue_auto_snapshots(background_tasks, [sess])
     return IngestResult(accepted=1)
@@ -64,12 +68,13 @@ def ingest_batch(
     batch: EventBatch,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> IngestResult:
     # Sort by timestamp so the sessionizer sees events in chronological order
     # even if a delayed flush carries an out-of-order batch.
     touched: list[Optional[SessionModel]] = []
     for e in sorted(batch.events, key=lambda x: x.timestamp):
-        _, sess = _persist(db, e)
+        _, sess = _persist(db, e, current_user)
         touched.append(sess)
     db.commit()
     _enqueue_auto_snapshots(background_tasks, touched)
@@ -79,11 +84,12 @@ def ingest_batch(
 @router.get("", response_model=list[EventOut])
 def list_events(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     limit: int = Query(default=100, ge=1, le=1000),
     event_type: Optional[str] = None,
     since_minutes: Optional[int] = Query(default=None, ge=1),
 ) -> list[Event]:
-    q = db.query(Event)
+    q = db.query(Event).filter(Event.user_id == current_user.id)
     if event_type:
         q = q.filter(Event.event_type == event_type)
     if since_minutes:
@@ -93,9 +99,13 @@ def list_events(
 
 
 @router.get("/stats")
-def stats(db: Session = Depends(get_db)) -> dict:
-    total = db.query(Event).count()
-    last = db.query(Event).order_by(desc(Event.timestamp)).first()
+def stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    q = db.query(Event).filter(Event.user_id == current_user.id)
+    total = q.count()
+    last = q.order_by(desc(Event.timestamp)).first()
     return {
         "total_events": total,
         "last_event_at": last.timestamp.isoformat() if last else None,

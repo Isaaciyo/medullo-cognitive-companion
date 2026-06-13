@@ -2,8 +2,9 @@
 
 Two paths are supported, depending on what you're trying to do:
 
-1. **[Hackathon-style live demo](#path-1--hosted-demo-vercel--railway)** — frontend on Vercel,
-   backend on Railway. Anyone with the URL can experience your live snapshots.
+1. **[Hosted app](#path-1--hosted-app-vercel--railway)** — frontend on Vercel,
+   backend on Railway. Multiple users can point at the same backend; bearer
+   tokens keep each user's events, sessions, and snapshots separate.
 2. **[Self-host](#path-2--self-host-docker-compose)** — `docker compose up`
    and the whole stack runs on the user's machine. Matches the brief's
    local-first identity.
@@ -13,9 +14,9 @@ backend URL, so the same published extension works against either deployment.
 
 ---
 
-## Path 1 · Hosted demo (Vercel + Railway)
+## Path 1 · Hosted app (Vercel + Railway)
 
-The fastest way to give judges or testers a working URL.
+The fastest way to give judges, testers, or early users a working URL.
 
 ### What you'll deploy
 
@@ -79,7 +80,26 @@ medullo-backend   ──→  Railway       (Docker, $5/mo trial-then-paid, persi
 3. Browse for a few minutes, then step away or sit on `chrome://newtab/`
    to trigger an interruption.
 4. Open your Vercel URL. The welcome card should render with the
-   Gemini-generated snapshot.
+   Gemini-generated snapshot. If prompted, copy the token from the Chrome
+   extension popup and paste it into the UI.
+
+### Hosted user isolation
+
+The Railway backend is now multi-user:
+
+- `POST /auth/devices` issues a bearer token and creates a backend-owned
+  anonymous user when needed.
+- Chrome stores the token in `chrome.storage.local` and sends it as
+  `Authorization: Bearer ...` on every event batch.
+- The resume UI stores the same token in browser `localStorage` and uses it
+  for session/snapshot reads.
+- VS Code can either auto-provision its own token or use the shared token via
+  `medullo.accessToken`.
+- The backend sets `events.user_id` and `sessions.user_id` from the verified
+  token and filters every private query by that ID.
+
+Do not ask clients to send a plain `user_id` as proof of identity. IDs are
+labels; bearer tokens are the authorization boundary.
 
 ---
 
@@ -208,6 +228,16 @@ fill in `publisher`, `displayName`, `description`, `repository`, and add a
 | `DATABASE_URL`    | `sqlite:////data/medullo.db`  | Postgres URL also works (set up the table migrations yourself) |
 | `CORS_ORIGINS`    | `http://localhost:3000,...`   | Comma-separated; wildcards allowed (e.g. `https://*.vercel.app`) |
 | `PORT`            | `8000`                        | Railway/Fly inject this — leave it unset                    |
+
+### Auth endpoints
+
+| Endpoint | Purpose |
+| -------- | ------- |
+| `POST /auth/devices` | Create an anonymous user/device token, or attach a new device when called with an existing bearer token |
+| `GET /auth/me` | Verify the current bearer token and return the user record |
+
+All `/events/*` and `/sessions/*` endpoints require `Authorization: Bearer
+<token>`.
 
 ### Frontend env vars
 

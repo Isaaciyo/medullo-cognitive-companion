@@ -1215,9 +1215,9 @@ their data local (the path the brief actually argues for).
   events flow to the hosted backend
 - ✅ Auto-snapshot loop (Phase 5) still fires correctly with the
   hosted backend — confirmed by user during deployment verification
-- ⏳ docker-compose self-host path: code is in place, end-to-end
-  test pending (user to run `docker compose up -d --build` and
-  confirm)
+- ✅ docker-compose self-host path: full stack boots with
+  `docker compose up -d --build`, frontend renders against the
+  in-network backend, extension can be pointed at `http://localhost:8000`
 
 ### Gotchas captured during deploy
 
@@ -1226,6 +1226,8 @@ their data local (the path the brief actually argues for).
 | Railway built without finding Dockerfile | Service Root Directory still at repo root | Set Root Directory to `backend` in service Settings |
 | Vercel fetch raised "Failed to parse URL" | `NEXT_PUBLIC_API_URL` saved without `https://` scheme | Fix env var, **redeploy** (NEXT_PUBLIC_* are build-time) |
 | Initial CORS too permissive (`*`) | Temporary value used before Vercel URL was known | Tighten to exact Vercel URL once known |
+| `docker compose up` failed with `/app/public not found` | Next.js project had no `public/` directory; Dockerfile assumed one existed | Added `frontend/public/.gitkeep` |
+| Frontend container rendered "fetch failed" against backend | SSR fetch used `http://localhost:8000`, which inside the container means the container itself — not the backend service | Split into `SERVER_API_URL` / `BROWSER_API_URL` in [frontend/lib/api.ts](frontend/lib/api.ts); docker-compose sets `INTERNAL_API_URL=http://backend:8000` as a runtime env (NOT a `NEXT_PUBLIC_*` so the browser never sees it). Vercel still falls through to `NEXT_PUBLIC_API_URL` for both, which is correct there. |
 
 ### How a new user gets it running
 

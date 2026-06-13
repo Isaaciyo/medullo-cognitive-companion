@@ -1,22 +1,51 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { AmbientBackground } from "@/components/AmbientBackground";
-import { listSessions } from "@/lib/api";
+import { AuthTokenPrompt } from "@/components/AuthTokenPrompt";
+import {
+  captureAccessTokenFromUrl,
+  clearStoredAccessToken,
+  getStoredAccessToken,
+  listSessions,
+} from "@/lib/api";
 import type { Session } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export default function InterruptionsPage() {
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [needsToken, setNeedsToken] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-export default async function InterruptionsPage() {
-  let sessions: Session[] = [];
-  let error: string | null = null;
-
-  try {
-    // Fetch interrupted sessions that have snapshots, limit to last 10
-    sessions = await listSessions({ interrupted: true, limit: 10 });
-    // Filter to only those with snapshots
-    sessions = sessions.filter((s) => s.snapshot_generated_at !== null);
-  } catch (e) {
-    error = e instanceof Error ? e.message : "Could not reach Medullo.";
+  async function load() {
+    setLoading(true);
+    setError(null);
+    captureAccessTokenFromUrl();
+    if (!getStoredAccessToken()) {
+      setNeedsToken(true);
+      setLoading(false);
+      return;
+    }
+    setNeedsToken(false);
+    try {
+      const nextSessions = await listSessions({ interrupted: true, limit: 10 });
+      setSessions(nextSessions.filter((s) => s.snapshot_generated_at !== null));
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Could not reach Medullo.";
+      if (message.includes("access token")) {
+        clearStoredAccessToken();
+        setNeedsToken(true);
+      } else {
+        setError(message);
+      }
+    } finally {
+      setLoading(false);
+    }
   }
+
+  useEffect(() => {
+    load();
+  }, []);
 
   return (
     <main className="relative min-h-screen w-full overflow-x-hidden fade-in-canvas">
@@ -42,7 +71,13 @@ export default async function InterruptionsPage() {
           </div>
         </header>
 
-        {error ? (
+        {needsToken ? (
+          <AuthTokenPrompt onTokenSaved={load} />
+        ) : loading ? (
+          <section className="mx-auto max-w-md rounded-3xl border border-white/70 bg-white/75 p-8 text-center shadow-xl shadow-mist-200/70 backdrop-blur">
+            <h2 className="font-welcome text-4xl text-ink-900">Loading.</h2>
+          </section>
+        ) : error ? (
           <section className="mx-auto max-w-md rounded-3xl border border-white/70 bg-white/75 p-8 text-center shadow-xl shadow-mist-200/70 backdrop-blur">
             <h2 className="font-welcome text-4xl text-ink-900">Soon.</h2>
             <p className="mt-4 text-sm text-ink-700">The interruptions archive needs the backend to be running.</p>

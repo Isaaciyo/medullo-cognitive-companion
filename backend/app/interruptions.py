@@ -84,6 +84,7 @@ def auto_snapshot_session(session_id: int) -> None:
 
         events = (
             db.query(Event)
+            .filter(Event.user_id == session.user_id)
             .filter(Event.session_id == session_id)
             .order_by(Event.timestamp.asc())
             .all()

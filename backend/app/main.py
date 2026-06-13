@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import Base, engine, ensure_schema
-from .routers import events, sessions
+from .routers import auth, events, sessions
 
 load_dotenv()
 
@@ -47,6 +47,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(events.router)
 app.include_router(sessions.router)
 

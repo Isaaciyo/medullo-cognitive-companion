@@ -34,6 +34,15 @@ _SESSIONS_PHASE5_COLUMNS = {
     "interruption_type": "VARCHAR(24)",
 }
 
+_MULTI_USER_COLUMNS = {
+    "events": {
+        "user_id": "VARCHAR(36) REFERENCES users(id)",
+    },
+    "sessions": {
+        "user_id": "VARCHAR(36) REFERENCES users(id)",
+    },
+}
+
 
 def ensure_schema() -> None:
     """Apply lightweight, non-destructive migrations on startup.
@@ -55,10 +64,16 @@ def ensure_schema() -> None:
                 conn.execute(
                     text("ALTER TABLE events ADD COLUMN session_id INTEGER REFERENCES sessions(id)")
                 )
+            for col, col_type in _MULTI_USER_COLUMNS["events"].items():
+                if col not in events_cols:
+                    conn.execute(text(f"ALTER TABLE events ADD COLUMN {col} {col_type}"))
 
         # Phase 4 + 5 migrations: snapshot fields and interruption_type on sessions
         if "sessions" in tables:
             sessions_cols = {c["name"] for c in insp.get_columns("sessions")}
             for col, col_type in {**_SESSIONS_PHASE4_COLUMNS, **_SESSIONS_PHASE5_COLUMNS}.items():
+                if col not in sessions_cols:
+                    conn.execute(text(f"ALTER TABLE sessions ADD COLUMN {col} {col_type}"))
+            for col, col_type in _MULTI_USER_COLUMNS["sessions"].items():
                 if col not in sessions_cols:
                     conn.execute(text(f"ALTER TABLE sessions ADD COLUMN {col} {col_type}"))

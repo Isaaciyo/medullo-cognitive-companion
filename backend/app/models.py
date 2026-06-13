@@ -6,6 +6,41 @@ from sqlalchemy.orm import relationship
 from .database import Base
 
 
+class User(Base):
+    """A backend-owned account boundary.
+
+    Devices/extensions authenticate with bearer tokens that resolve to one
+    user. Event/session/snapshot queries are always scoped through this ID.
+    """
+
+    __tablename__ = "users"
+
+    id = Column(String(36), primary_key=True, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    label = Column(Text, nullable=True)
+
+    devices = relationship("DeviceToken", back_populates="user")
+    sessions = relationship("Session", back_populates="user")
+    events = relationship("Event", back_populates="user")
+
+
+class DeviceToken(Base):
+    """A single extension/UI token, stored as a hash."""
+
+    __tablename__ = "device_tokens"
+
+    id = Column(String(36), primary_key=True, index=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    device_name = Column(Text, nullable=True)
+    install_id = Column(String(128), nullable=True, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    last_seen_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", back_populates="devices")
+
+
 class Session(Base):
     """A semantic work session — a coherent chunk of attention on a task.
 
@@ -16,6 +51,7 @@ class Session(Base):
     __tablename__ = "sessions"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=True, index=True)
     started_at = Column(DateTime, nullable=False, index=True)
     ended_at = Column(DateTime, nullable=True, index=True)
     status = Column(String(16), nullable=False, default="active", index=True)  # active | closed
@@ -38,6 +74,7 @@ class Session(Base):
     snapshot_generated_at = Column(DateTime, nullable=True)
     snapshot_model = Column(String(64), nullable=True)
 
+    user = relationship("User", back_populates="sessions")
     events = relationship("Event", back_populates="session", order_by="Event.timestamp")
 
 
@@ -52,6 +89,7 @@ class Event(Base):
     __tablename__ = "events"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=True, index=True)
     timestamp = Column(DateTime, nullable=False, index=True)
     received_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     event_type = Column(String(32), nullable=False, index=True)
@@ -64,7 +102,10 @@ class Event(Base):
     session_id = Column(Integer, ForeignKey("sessions.id"), nullable=True, index=True)
     extra = Column(JSON, nullable=True)
 
+    user = relationship("User", back_populates="events")
     session = relationship("Session", back_populates="events")
 
 
 Index("ix_events_type_timestamp", Event.event_type, Event.timestamp)
+Index("ix_events_user_type_timestamp", Event.user_id, Event.event_type, Event.timestamp)
+Index("ix_sessions_user_started", Session.user_id, Session.started_at)

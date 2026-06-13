@@ -29,6 +29,7 @@ function getBackendUrl() {
 
 let extension = {
   disposables: [],
+  context: null,
   lastReportedUri: null,
   lastReportedLine: null,
   lastReportedColumn: null,
@@ -39,6 +40,7 @@ let extension = {
  */
 function activate(context) {
   console.log('Medullo VS Code extension activated');
+  extension.context = context;
 
   // Send initial context
   reportCodeContext();
@@ -73,6 +75,48 @@ function activate(context) {
     }
   );
   extension.disposables.push(flushDisposable);
+}
+
+function getConfiguredAccessToken() {
+  const configured = vscode.workspace
+    .getConfiguration("medullo")
+    .get("accessToken");
+  return typeof configured === "string" && configured.trim()
+    ? configured.trim()
+    : null;
+}
+
+async function ensureAccessToken() {
+  const configured = getConfiguredAccessToken();
+  if (configured) return configured;
+
+  const stored = extension.context?.globalState.get("medullo.accessToken");
+  if (typeof stored === "string" && stored.trim()) return stored;
+
+  const response = await fetch(`${getBackendUrl()}/auth/devices`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      device_name: "VS Code extension",
+      install_id: vscode.env.machineId,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`auth HTTP ${response.status}`);
+  }
+
+  const payload = await response.json();
+  await extension.context?.globalState.update("medullo.accessToken", payload.access_token);
+  await extension.context?.globalState.update("medullo.userId", payload.user_id);
+  return payload.access_token;
+}
+
+async function authHeaders() {
+  const token = await ensureAccessToken();
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
 }
 
 /**
@@ -141,7 +185,7 @@ async function reportCodeContext(editor = null, position = null) {
     // Send to backend
     const response = await fetch(`${getBackendUrl()}/events`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await authHeaders(),
       body: JSON.stringify(event),
     });
 
@@ -254,7 +298,7 @@ async function sendEvent(eventType, options = {}) {
 
     const response = await fetch(`${getBackendUrl()}/events`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await authHeaders(),
       body: JSON.stringify(event),
     });
 

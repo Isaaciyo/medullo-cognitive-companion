@@ -1,70 +1,87 @@
-# Medullo — VS Code Extension
+# Medullo — Code Context for VS Code
 
-Captures your active file, cursor position, and function name to enrich Medullo's cognitive snapshots.
+A quiet companion that captures where you are in your code, so
+[Medullo](https://medullo-cognitive-companion.vercel.app) can reconstruct
+your train of thought after an interruption.
 
-## Features
+This extension is one piece of a larger cognitive continuity system. On
+its own it does nothing visible — it sends lightweight context signals to
+the Medullo backend, which uses them to enrich the AI-generated snapshots
+that appear on the Medullo resume screen.
 
-- 🔍 **Active File Tracking**: Sends file path, language, and line/column on focus changes
-- 🎯 **Cursor Position**: Reports cursor position updates to backend
-- 🔬 **Function Detection**: Simple heuristic to extract the function/method name you're in
-- � **Idle Detection**: Automatically detects when you step away from VS Code (≥2 min inactivity)
-- 📍 **Drift Detection**: Identifies major context switches (different project/directory)
-- �🔇 **Quiet**: Runs in the background, no UI, minimal overhead
+---
+
+## What it captures
+
+| Event | Fires when | Carries |
+| --- | --- | --- |
+| `vscode_context` | You switch files or move the cursor | file path, file name, line, column, language, best-guess function name |
+| `vscode_idle` | You're inactive in VS Code for ≥60s | inactive seconds, the last file you were on |
+| `vscode_active` | You return from idle | how long you were away |
+| `vscode_drift` | You context-switch to a very different file or project | from_file, to_file, language |
+
+What it **does not** capture:
+
+- The contents of any file you have open
+- Anything from terminals, output panels, or debug consoles
+- Diffs, commit messages, secrets, `.env` contents
+
+The "function name" is a best-guess extracted by a simple regex over the
+surrounding lines — the surrounding code itself is never sent.
+
+---
 
 ## Setup
 
-1. Make sure Medullo backend is running on `http://localhost:8000`
-2. In VS Code: `File > Open Folder...` → select this directory (`vscode-extension/`)
-3. Press `F5` to open the extension in a debug window
-4. Open any code file — the extension will start sending context to the backend
+1. Install the extension (Marketplace install, or sideload via `.vsix`)
+2. Open VS Code Settings (**⌘ ,**) → search **"Medullo"** →
+   set `medullo.backendUrl` to the URL of your Medullo backend
+3. If you want VS Code context to join the same account as Chrome, set
+   `medullo.accessToken` to the token copied from the Chrome extension popup
+4. That's it. Open a code file and start working — the extension reports
+   silently in the background.
 
-Or to package:
+**Default backend URL:** `http://localhost:8000` (for the standard
+self-host path).
 
-```bash
-npm install -g @vscode/vsce
-vsce package
-```
+To use against a hosted Medullo backend, paste the deployed URL into the
+setting — for example
+`https://medullo-cognitive-companion-production.up.railway.app`.
 
-Then install the `.vsix` file in VS Code.
+---
 
-## How It Works
+## Configuration
 
-When you:
-- Switch files → sends `vscode_context` event with new file info
-- Move cursor → sends `vscode_context` with new line/column
-- Step away (2+ min idle) → sends `vscode_idle` event
-- Return from idle → sends `vscode_active` event
-- Switch to very different file/project → sends `vscode_drift` event
-- Use command `Medullo: Flush Context` → manually trigger a report
+| Setting | Default | Description |
+| --- | --- | --- |
+| `medullo.backendUrl` | `http://localhost:8000` | URL of the Medullo backend that should receive code context events. |
+| `medullo.accessToken` | `""` | Optional bearer token. Use the Chrome extension's copied token to share one account. |
 
-## Event Types
+Change it via the Settings UI (**Code → Preferences → Settings → "Medullo"**)
+or by editing `settings.json` directly:
 
-| Event | Triggers | Payload |
-|-------|----------|---------|
-| `vscode_context` | File/cursor change | file_path, line, column, function_name, language_id |
-| `vscode_idle` | 2+ min without activity | inactive_seconds, last_file |
-| `vscode_active` | Return from idle | idle_duration_seconds |
-| `vscode_drift` | Major context switch | from_file, to_file, language_id |
-- `file_path`: Full file path
-- `file_name`: Just the filename
-- `language_id`: VS Code language (javascript, python, etc.)
-- `line_number`: 1-indexed line number
-- `column_number`: 1-indexed column number
-- `function_name`: Extracted function/method name (heuristic)
-
-## Event Examples
-
-### vscode_context (cursor/file activity)
 ```json
 {
-  "timestamp": "2026-05-28T20:15:33Z",
+  "medullo.backendUrl": "https://your-medullo-backend.example.com",
+  "medullo.accessToken": "medullo_paste_token_here"
+}
+```
+
+The setting takes effect immediately — no reload needed.
+
+---
+
+## Example event
+
+```json
+{
+  "timestamp": "2026-06-03T17:23:25Z",
   "event_type": "vscode_context",
   "app": "VSCode",
   "title": "auth.ts",
   "url": "/path/to/project/src/auth.ts",
   "extra": {
     "language_id": "typescript",
-    "file_path": "/path/to/project/src/auth.ts",
     "file_name": "auth.ts",
     "line_number": 42,
     "column_number": 15,
@@ -73,44 +90,56 @@ When you:
 }
 ```
 
-### vscode_idle (detected 2+ min inactivity)
-```json
-{
-  "timestamp": "2026-05-28T20:25:00Z",
-  "event_type": "vscode_idle",
-  "app": "VSCode",
-  "extra": {
-    "inactive_seconds": 120,
-    "last_file": "/path/to/project/src/auth.ts"
-  }
-}
+---
+
+## Privacy
+
+This extension transmits file metadata only — never file contents — and only
+to the backend URL you explicitly set in `medullo.backendUrl`. The default is
+your own machine. If you use a hosted backend, set `medullo.accessToken` to
+the token from the Chrome extension so browser and code context stay under the
+same authenticated user.
+
+Full privacy policy:
+[github.com/Isaaciyo/medullo-cognitive-companion/blob/main/PRIVACY.md](https://github.com/Isaaciyo/medullo-cognitive-companion/blob/main/PRIVACY.md).
+
+---
+
+## How it fits with the rest of Medullo
+
+```
+┌─ Browser (Chrome extension) ──┐
+│  active tab · idle · search   │
+└──────────────┬─────────────────┘
+               │
+┌─ VS Code (this extension) ────┐
+│  file · cursor · function     │
+└──────────────┬─────────────────┘
+               │
+               ▼
+   ┌─── Medullo backend ────┐
+   │  Session grouping      │
+   │  Interruption detection│
+   │  AI snapshot (Gemini)  │
+   └────────────┬───────────┘
+                ▼
+   ┌─── Medullo resume UI ──┐
+   │ Welcome back · You were│
+   │ in handleLogin() at 42 │
+   └────────────────────────┘
 ```
 
-### vscode_drift (major context switch)
-```json
-{
-  "timestamp": "2026-05-28T20:30:15Z",
-  "event_type": "vscode_drift",
-  "app": "VSCode",
-  "title": "index.tsx",
-  "url": "/path/to/frontend/src/index.tsx",
-  "extra": {
-    "from_file": "/path/to/project/src/auth.ts",
-    "to_file": "/path/to/frontend/src/index.tsx",
-    "language_id": "typescriptreact"
-  }
-}
-```
+The VS Code context shows up in Medullo's snapshots as enriching detail:
 
-## Limitations
+> **You were** debugging the auth refresh flow
+> **Where you were** `auth.ts`, line 42, function `handleLogin()`
+> **Progress** Verified the callback URL, narrowed the failure to the cookie write
+> **A possible next step** Inspect middleware cookie timing
 
-- Function detection uses simple regex (not a full AST parser)
-- Only sends to local backend (`http://localhost:8000`)
-- No encryption or authentication yet
+---
 
-## Future
+## Repository
 
-- [ ] Extract function name via full language server
-- [ ] Support remote backends
-- [ ] Configuration UI for backend URL
-- [ ] Semantic code snippets (surrounding context)
+[github.com/Isaaciyo/medullo-cognitive-companion](https://github.com/Isaaciyo/medullo-cognitive-companion)
+
+Built for the **International AI Agents Hackathon**.
