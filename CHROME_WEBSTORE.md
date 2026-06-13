@@ -61,7 +61,7 @@ A quiet second working memory. Medullo restores your mental state after interrup
 ### Detailed description
 
 ```
-Medullo is a calm, AI-powered cognitive continuity tool. When you get interrupted mid-task — a meeting, a Slack ping, a moment of drift on a new tab — Medullo quietly reconstructs what you were trying to do, so picking up afterward feels easy instead of expensive.
+Medullo is a calm, AI-powered cognitive continuity tool. When you get interrupted mid-task by a meeting, a Slack ping, or a moment of drift on a new tab, Medullo quietly reconstructs what you were trying to do, so picking up afterward feels almost effortless.
 
 How it works:
 • The extension observes lightweight signals: which tab you're on, when you switch, when you go idle, what you searched for.
@@ -85,7 +85,7 @@ What's NOT collected
 
 Where your data goes
 • By default, to the hosted Medullo backend on Railway
-• You can change the backend URL to your own self-hosted backend
+• Developers can switch the backend URL to localhost for self-hosted testing
 • Hosted backends separate users with bearer-token authentication, so your snapshots are scoped to your account
 
 The product is memory augmentation, never monitoring.
@@ -152,7 +152,7 @@ permission in `manifest.json`. Paste these directly:
 | `storage` | Queue events locally when the backend is unreachable, persist the user's chosen backend URL preference, store the backend-issued access token, and track a per-install ID to group local activity. All extension storage is local to the user's browser. |
 | `alarms` | Wake the service worker every ~15s to flush queued events to the backend. MV3 service workers are otherwise terminated aggressively. |
 | `notifications` | Surface a quiet, optional alert when an interruption is detected, so the user can recover context faster. Notifications can be disabled by the user at the OS level. |
-| `host_permissions: ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"]` | The user configures which backend URL the extension sends events to. Because that URL can be any HTTPS host (a Vercel/Railway/Fly deployment, a friend's server, etc.), the extension cannot know it in advance. localhost permissions allow the default self-host path. No page content is read from any URL. |
+| `host_permissions: ["https://medullo-cognitive-companion-production.up.railway.app/*", "http://localhost/*", "http://127.0.0.1/*"]` | Send workflow events only to the hosted Medullo backend, or to localhost during self-hosted development. No page content is read from these hosts; this permission is only for the extension's backend API requests. |
 
 If the reviewer asks about a *single justification* field for the
 extension overall: "Medullo is a cognitive continuity tool that observes
@@ -175,7 +175,7 @@ and capture these (Chrome → ⌘⇧S or use macOS screenshot tool):
 | # | Capture | Why this one |
 | --- | --- | --- |
 | 1 | The full welcome card with a real snapshot rendered (Task / Intent / What you did / Next step), ambient blobs visible in the background | The product's whole identity in one frame |
-| 2 | The Chrome extension popup, settings drawer open with the Backend URL field visible | Demonstrates user control over where data goes |
+| 2 | The Chrome extension popup with status and Open app controls visible | Demonstrates connection state and user control |
 | 3 | The home page in the empty / "Hello." state | Calm tone, what new users see first |
 | 4 | The `/interruptions` page showing multiple recent moments | Hints at the temporal continuity story |
 | 5 | A close-up of one of the snapshot card's text sections | Shows the second-person, conservative tone |

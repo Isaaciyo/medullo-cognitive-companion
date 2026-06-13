@@ -69,8 +69,8 @@ Railway. For local self-hosting, set the backend URL to
 You can change the backend URL at any time:
 
 - **Chrome extension:** click the Medullo icon → click the "Backend" row →
-  enter a different URL → Save. The URL is stored locally in
-  `chrome.storage.local`.
+  enter the hosted backend or local self-host URL → Save. The URL is stored
+  locally in `chrome.storage.local`.
 - **VS Code extension:** Settings (⌘ ,) → search "Medullo" → set
   `medullo.backendUrl`.
 
@@ -128,7 +128,7 @@ collection still works; only the AI snapshot layer is disabled).
 | `storage`             | Queue events offline, persist your backend URL preference        |
 | `alarms`              | Wake the service worker every ~15s to flush queued events        |
 | `notifications`       | Surface a quiet alert when an interruption is detected           |
-| `host_permissions: https://*/*` | Required because you, the user, choose which backend URL the extension sends events to — Chrome cannot know it in advance |
+| `host_permissions` for hosted Railway + localhost | Allows the extension to send events to the Medullo backend API, or to localhost for self-hosted development. |
 
 ---
 

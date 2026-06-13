@@ -7,7 +7,7 @@
   "host_permissions": [
     "http://localhost/*",
     "http://127.0.0.1/*",
-    "https://*/*"
+    "https://medullo-cognitive-companion-production.up.railway.app/*"
   ],
   "background": {
     "service_worker": "background.js",

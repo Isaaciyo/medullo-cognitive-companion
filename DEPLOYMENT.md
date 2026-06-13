@@ -198,8 +198,8 @@ Then:
    - `tabs`, `idle`, `windows`: needed to detect attention signals
    - `storage`: queues events locally, stores backend URL preference
    - `notifications`: surfaces interruption alerts
-   - `host_permissions: https://*/*`: required because the user
-     configures which backend URL the extension sends events to
+   - `host_permissions`: required for the hosted Railway backend and
+     localhost development URLs that the extension sends events to
 5. Submit. Review typically takes 1–3 days.
 
 ### VS Code Marketplace
