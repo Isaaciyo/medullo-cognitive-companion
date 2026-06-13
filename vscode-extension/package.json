@@ -39,6 +39,12 @@
   ],
   "main": "./extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "medullo.flush",
+        "title": "Medullo: Flush Current Context"
+      }
+    ],
     "configuration": {
       "title": "Medullo",
       "properties": {

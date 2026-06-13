@@ -9,6 +9,8 @@ const CONFIG = {
   // rebuilding the extension.
   defaultBackendUrl: "https://medullo-cognitive-companion-production.up.railway.app",
   idleThresholdSeconds: 60,
+  cursorDebounceMs: 2000,
+  minAutoReportMs: 15000,
 };
 
 /**
@@ -30,24 +32,35 @@ function getBackendUrl() {
 let extension = {
   disposables: [],
   context: null,
+  output: null,
   lastReportedUri: null,
   lastReportedLine: null,
   lastReportedColumn: null,
+  lastAutoReportAtMs: 0,
+  pendingReportTimeoutId: null,
 };
+
+function log(message) {
+  const line = `[${new Date().toLocaleTimeString()}] ${message}`;
+  extension.output?.appendLine(line);
+  console.log(`Medullo: ${message}`);
+}
 
 /**
  * Called when the extension activates (on VS Code startup).
  */
 function activate(context) {
-  console.log('Medullo VS Code extension activated');
   extension.context = context;
+  extension.output = vscode.window.createOutputChannel("Medullo");
+  extension.disposables.push(extension.output);
+  log("VS Code extension activated");
 
   // Send initial context
-  reportCodeContext();
+  reportCodeContext(null, null, { force: true, reason: "activation" });
 
   // Listen for active editor changes
   const editorChangeDisposable = vscode.window.onDidChangeActiveTextEditor(
-    () => reportCodeContext()
+    () => reportCodeContext(null, null, { force: true, reason: "editor_change" })
   );
   extension.disposables.push(editorChangeDisposable);
 
@@ -57,10 +70,7 @@ function activate(context) {
       const editor = event.textEditor;
       const selection = event.selections[0];
       if (selection) {
-        reportCodeContext(editor, {
-          line: selection.active.line + 1, // 1-indexed for humans
-          column: selection.active.character + 1,
-        });
+        scheduleCodeContextReport(editor, selection.active);
       }
     }
   );
@@ -70,11 +80,29 @@ function activate(context) {
   const flushDisposable = vscode.commands.registerCommand(
     "medullo.flush",
     async () => {
-      await reportCodeContext();
-      vscode.window.showInformationMessage("Medullo context flushed");
+      const result = await reportCodeContext(null, null, { force: true });
+      if (result?.ok) {
+        vscode.window.showInformationMessage("Medullo context flushed");
+      } else {
+        vscode.window.showWarningMessage(
+          result?.message || "Medullo did not find an active editor to flush"
+        );
+      }
     }
   );
   extension.disposables.push(flushDisposable);
+}
+
+function scheduleCodeContextReport(editor, position) {
+  extension.lastActivityTimeMs = Date.now();
+  extension.isIdle = false;
+  if (extension.pendingReportTimeoutId) {
+    clearTimeout(extension.pendingReportTimeoutId);
+  }
+  extension.pendingReportTimeoutId = setTimeout(() => {
+    extension.pendingReportTimeoutId = null;
+    reportCodeContext(editor, position, { reason: "cursor_settled" });
+  }, CONFIG.cursorDebounceMs);
 }
 
 function getConfiguredAccessToken() {
@@ -122,11 +150,11 @@ async function authHeaders() {
 /**
  * Report the current code context to the backend.
  */
-async function reportCodeContext(editor = null, position = null) {
+async function reportCodeContext(editor = null, position = null, options = {}) {
   try {
     // Use provided editor or get current active editor
     const activeEditor = editor || vscode.window.activeTextEditor;
-    if (!activeEditor) return;
+    if (!activeEditor) return { ok: false, message: "No active editor" };
 
     const uri = activeEditor.document.uri.fsPath;
     const fileName = activeEditor.document.fileName.split("/").pop();
@@ -134,14 +162,21 @@ async function reportCodeContext(editor = null, position = null) {
     const position_ = position || activeEditor.selection.active;
     const line = position_.line + 1; // 1-indexed
     const column = position_.character + 1;
+    const now = Date.now();
+    extension.lastActivityTimeMs = now;
+    extension.isIdle = false;
 
-    // Debounce: don't spam the same position
+    // Don't spam the same position, and rate-limit automatic cursor reports.
     if (
+      !options.force &&
       extension.lastReportedUri === uri &&
       extension.lastReportedLine === line &&
       extension.lastReportedColumn === column
     ) {
-      return;
+      return { ok: true, message: "Context unchanged" };
+    }
+    if (!options.force && now - extension.lastAutoReportAtMs < CONFIG.minAutoReportMs) {
+      return { ok: true, message: "Context report rate-limited" };
     }
 
     // Detect drift (major context switch)
@@ -155,7 +190,7 @@ async function reportCodeContext(editor = null, position = null) {
           language_id: languageId,
         },
       });
-      console.log(`Medullo: VS Code drift detected (${extension.lastActiveFile} → ${fileName})`);
+      log(`VS Code drift detected (${extension.lastActiveFile} -> ${fileName})`);
     }
 
     extension.lastReportedUri = uri;
@@ -190,10 +225,19 @@ async function reportCodeContext(editor = null, position = null) {
     });
 
     if (!response.ok) {
-      console.error(`Medullo backend error: ${response.status}`);
+      const message = `Backend error: ${response.status}`;
+      log(message);
+      return { ok: false, message };
     }
+    if (!options.force) {
+      extension.lastAutoReportAtMs = now;
+    }
+    log(`Sent vscode_context for ${fileName}:${line}:${column}`);
+    return { ok: true };
   } catch (err) {
-    console.error("Medullo: Error reporting code context:", err);
+    const message = `Error reporting code context: ${err}`;
+    log(message);
+    return { ok: false, message };
   }
 }
 
@@ -245,7 +289,7 @@ async function checkAndReportIdleState() {
         last_file: extension.lastActiveFile,
       },
     });
-    console.log(`Medullo: VS Code idle detected (${Math.round(inactiveSeconds)}s)`);
+    log(`VS Code idle detected (${Math.round(inactiveSeconds)}s)`);
   } else if (inactiveSeconds < CONFIG.idleThresholdSeconds && extension.isIdle) {
     // Transition back to active
     extension.isIdle = false;
@@ -254,7 +298,7 @@ async function checkAndReportIdleState() {
         idle_duration_seconds: Math.round(inactiveSeconds),
       },
     });
-    console.log(`Medullo: VS Code activity resumed`);
+    log("VS Code activity resumed");
   }
 }
 
@@ -303,10 +347,10 @@ async function sendEvent(eventType, options = {}) {
     });
 
     if (!response.ok) {
-      console.error(`Medullo backend error: ${response.status}`);
+      log(`Backend error: ${response.status}`);
     }
   } catch (err) {
-    console.error("Medullo: Error sending event:", err);
+    log(`Error sending event: ${err}`);
   }
 }
 
