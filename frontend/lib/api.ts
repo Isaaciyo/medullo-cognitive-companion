@@ -24,6 +24,10 @@ function apiUrl(): string {
   return typeof window === "undefined" ? SERVER_API_URL : BROWSER_API_URL;
 }
 
+export function getApiBaseUrl(): string {
+  return apiUrl();
+}
+
 export function getStoredAccessToken(): string | null {
   if (typeof window === "undefined") {
     return process.env.MEDULLO_ACCESS_TOKEN ?? null;

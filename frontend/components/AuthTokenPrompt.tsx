@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { setStoredAccessToken } from "@/lib/api";
+import { getApiBaseUrl, setStoredAccessToken } from "@/lib/api";
 
 interface Props {
   onTokenSaved: () => void;
@@ -27,6 +27,9 @@ export function AuthTokenPrompt({ onTokenSaved, message }: Props) {
         Connect this browser to your Medullo memory.
       </p>
       {message && <p className="mt-2 text-sm font-light text-ink-500">{message}</p>}
+      <p className="mt-3 break-all text-xs font-light text-ink-400">
+        API: <code>{getApiBaseUrl()}</code>
+      </p>
       <form onSubmit={submit} className="mt-6 flex flex-col gap-3">
         <input
           value={token}

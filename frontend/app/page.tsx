@@ -8,6 +8,7 @@ import { WelcomeCard } from "@/components/WelcomeCard";
 import {
   captureAccessTokenFromUrl,
   clearStoredAccessToken,
+  getApiBaseUrl,
   getLastInterruptedSession,
   getSnapshot,
   getStoredAccessToken,
@@ -98,8 +99,8 @@ function BackendOffline({ message }: { message: string }) {
       </p>
       <p className="mt-2 text-sm font-light text-ink-500">{message}</p>
       <p className="mt-6 text-xs text-ink-400">
-        Make sure the backend is running on{" "}
-        <code className="rounded bg-mist-100 px-1.5 py-0.5">localhost:8000</code>.
+        Configured API:{" "}
+        <code className="rounded bg-mist-100 px-1.5 py-0.5">{getApiBaseUrl()}</code>
       </p>
       <a
         href="/connect"
