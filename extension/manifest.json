@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Medullo — Second Brain",
+  "name": "Medullo - Never Lose Track",
   "version": "0.1.1",
   "description": "Ambient cognitive continuity. Observes lightweight workflow signals so the AI can restore your mental state after interruptions.",
   "permissions": ["tabs", "idle", "storage", "alarms", "notifications", "windows"],

@@ -1,8 +1,8 @@
 {
   "name": "medullo-vscode",
-  "displayName": "Medullo — Code Context",
+  "displayName": "Medullo — Second Brain for Developers",
   "description": "A quiet companion that captures where you are in your code, so Medullo can reconstruct your train of thought after an interruption.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "medullo",
   "license": "MIT",
   "icon": "icon.png",
